@@ -28,6 +28,7 @@ permissions:
   contents: read
   actions: read
   pull-requests: write  # Required for commenting on PRs
+  checks: write  # Required for test reporting
 
 env:
   MAVEN_OPTS: -Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=${{ github.workspace }}/.m2/repository
@@ -107,6 +108,15 @@ jobs:
         cp baseline/target/surefire-reports/*.xml benchmark-results/baseline/ || true
         cp baseline/target/surefire-reports/*.txt benchmark-results/baseline/ || true
 
+    - name: Generate baseline performance test report
+      if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+      uses: dorny/test-reporter@v1
+      with:
+        name: Baseline Performance Tests
+        path: baseline/target/surefire-reports/*.xml
+        reporter: java-junit
+        fail-on-error: false
+
     - name: Run current benchmarks
       working-directory: current
       run: |
@@ -130,6 +140,14 @@ jobs:
         mkdir -p benchmark-results/current
         cp current/target/surefire-reports/*.xml benchmark-results/current/ || true
         cp current/target/surefire-reports/*.txt benchmark-results/current/ || true
+
+    - name: Generate current performance test report
+      uses: dorny/test-reporter@v1
+      with:
+        name: Current Performance Tests
+        path: current/target/surefire-reports/*.xml
+        reporter: java-junit
+        fail-on-error: false
 
     - name: Analyze performance results
       run: |
@@ -259,22 +277,94 @@ jobs:
           benchmark-report.md
         retention-days: 30
 
-    - name: Comment PR with benchmark results
+    - name: Comment PR with enhanced benchmark results
       if: github.event_name == 'pull_request'
       uses: actions/github-script@v7
       with:
         script: |
           const fs = require('fs');
-          const path = 'benchmark-report.md';
+          const reportPath = 'benchmark-report.md';
           
-          if (fs.existsSync(path)) {
-            const report = fs.readFileSync(path, 'utf8');
+          if (fs.existsSync(reportPath)) {
+            let report = fs.readFileSync(reportPath, 'utf8');
+            
+            // Enhance the report with additional formatting and context
+            const enhancedReport = `## ⚡ Performance Benchmark Results
+            
+            ### 📈 Benchmark Overview
+            This PR has been benchmarked against the baseline to detect performance regressions.
+            
+            **Regression Threshold**: 10% increase in execution time
+            **Environment**: Ubuntu Latest, Java 21, DynamoDB Local
+            
+            ${report}
+            
+            ### 📊 Performance Guidelines
+            - ✅ **Green**: Performance improved or maintained
+            - ⚠️ **Yellow**: Minor regression (< 10% slower)
+            - ❌ **Red**: Significant regression (≥ 10% slower)
+            
+            ### 🔧 Optimization Tips
+            - Check for unnecessary object allocations
+            - Review database query efficiency
+            - Consider caching strategies for repeated operations
+            - Profile code with tools like JProfiler or async-profiler
+            
+            ---
+            *Benchmark results generated automatically by CI/CD pipeline*
+            *For detailed performance data, check the workflow artifacts*`;
+            
+            // Find existing benchmark comment to update or create new one
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const existingComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && comment.body.includes('⚡ Performance Benchmark Results')
+            );
+            
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: enhancedReport
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: enhancedReport
+              });
+            }
+          } else {
+            // Create a fallback comment if no benchmark report is available
+            const fallbackComment = `## ⚡ Performance Benchmark Results
+            
+            ### ⚠️ Benchmark Report Not Available
+            The performance benchmark report could not be generated for this PR.
+            
+            **Possible reasons:**
+            - Performance tests failed to execute
+            - No baseline data available for comparison
+            - Benchmark workflow was skipped
+            
+            **Next Steps:**
+            - Check the benchmark workflow logs for errors
+            - Ensure performance tests are passing
+            - Verify benchmark workflow triggers are correct
+            
+            ---
+            *For detailed information, check the benchmark workflow in the Actions tab*`;
             
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: report
+              body: fallbackComment
             });
           }
 

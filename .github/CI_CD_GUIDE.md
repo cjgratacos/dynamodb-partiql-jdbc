@@ -207,6 +207,11 @@ Push tag v*.*.* → release.yml ONLY:
 | `MAVEN_CENTRAL_USERNAME` | Sonatype OSSRH username | Maven Central publishing |
 | `MAVEN_CENTRAL_PASSWORD` | Sonatype OSSRH password | Maven Central publishing |
 
+**Note:** JReleaser requires the GitHub token to be available via multiple methods:
+- Environment variable: `JRELEASER_GITHUB_TOKEN`
+- System property: `-Djreleaser.github.token`
+- Both are configured automatically in all release workflows
+
 ### Automatic Environment Variables
 
 ```yaml
@@ -287,6 +292,18 @@ git push origin v1.0.0
 - **Threshold:** 10% increase in execution time
 - **Action:** Warning in PR, manual review required
 - **Tracking:** Historical data stored for trending
+
+### Test Result Display Features
+
+- **GitHub Checks:** Automated test result status checks
+- **PR Comments:** Consolidated test result summaries with:
+  - Unit and integration test results
+  - Performance benchmark comparisons
+  - Code coverage reports with visual indicators
+  - Quality gate status
+- **Workflow Summaries:** Visual test result tables in GitHub Actions summaries
+- **Test Reports:** dorny/test-reporter integration for detailed test result display
+- **Artifact Uploads:** All test reports, coverage data, and performance results available as downloadable artifacts
 
 ## 🔄 Complete Workflow Triggers Matrix
 
@@ -396,6 +413,55 @@ git push origin v1.0.0
 - **Artifacts:** Download build outputs and reports
 - **Issues:** Create GitHub issues with simple issue template
 
+## 📊 Test Result Display & Reporting
+
+### Enhanced Test Visibility
+
+The CI/CD pipeline provides comprehensive test result visibility through multiple channels:
+
+#### GitHub Checks Integration
+- **Status Checks**: All workflows provide status check integration
+- **Test Reporter**: dorny/test-reporter provides detailed test result breakdowns
+- **Quality Gates**: Automatic pass/fail indicators for all quality requirements
+
+#### Pull Request Comments
+- **Consolidated Test Summary**: Automated comments showing:
+  - Unit test results (count, duration, success rate)
+  - Integration test results with DynamoDB Local status
+  - Performance benchmark comparison with baseline
+  - Code coverage percentage with file-level details
+  - Quality gate status for all requirements
+- **Auto-Update**: Comments are updated on subsequent pushes
+- **Visual Indicators**: Emoji-based status indicators for quick scanning
+
+#### Workflow Summaries
+- **Pipeline Status Tables**: Visual tables showing component status
+- **Test Results Overview**: Comprehensive test execution summaries
+- **Release Readiness**: Clear indicators of release readiness
+- **Troubleshooting Guidance**: Specific action items for failures
+
+#### Performance Benchmarking
+- **Regression Detection**: Automatic detection of 10%+ performance regressions
+- **Trend Analysis**: Historical performance tracking on main branch
+- **Visual Comparisons**: Side-by-side performance metrics
+- **Optimization Tips**: Automated guidance for performance improvements
+
+#### Downloadable Artifacts
+- **Test Reports**: Complete Surefire test reports in XML and HTML
+- **Coverage Reports**: JaCoCo coverage reports with branch/line details
+- **Performance Data**: Benchmark results and historical trends
+- **Build Artifacts**: JAR files with checksums for validation
+
+### Test Report Locations
+
+| Report Type | Location | Retention |
+|-------------|----------|-----------|
+| Test Results | GitHub Checks & PR Comments | Permanent |
+| Coverage Reports | Artifacts & PR Comments | 30 days |
+| Performance Benchmarks | Artifacts & PR Comments | 30-90 days |
+| Build Artifacts | Workflow artifacts | 14-30 days |
+| Historical Performance | main branch artifacts | 90 days |
+
 ## 📝 Maintenance
 
 ### Regular Tasks
@@ -410,6 +476,7 @@ git push origin v1.0.0
 - **Test Execution Time:** Monitor for performance regressions
 - **Main Branch Health:** Should always be release-ready
 - **Sanity Check Success:** Should be >99% (basic quality gate)
+- **Test Result Visibility:** Ensure all test reports are generated and accessible
 
 ## 🎯 Best Practices
 

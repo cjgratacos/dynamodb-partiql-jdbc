@@ -18,6 +18,8 @@ permissions:
   contents: write
   packages: write
   actions: read
+  checks: write
+  pull-requests: write
 
 env:
   MAVEN_OPTS: -Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=${{ github.workspace }}/.m2/repository
@@ -112,6 +114,15 @@ jobs:
         AWS_SECRET_ACCESS_KEY: fakeSecretAccessKey
         AWS_DEFAULT_REGION: us-east-1
 
+    - name: Generate performance test report
+      uses: dorny/test-reporter@v1
+      if: success() || failure()
+      with:
+        name: Release Candidate - Performance Tests
+        path: target/surefire-reports/*.xml
+        reporter: java-junit
+        fail-on-error: false
+
     - name: Upload performance results
       uses: actions/upload-artifact@v4
       with:
@@ -177,6 +188,7 @@ jobs:
     - name: JReleaser dry run validation
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        JRELEASER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         echo "Running JReleaser dry run to validate release configuration..."
         # Get version from workflow input or extract from POM
@@ -190,7 +202,8 @@ jobs:
         ./mvnw -s settings.xml jreleaser:config \
           -Djreleaser.project.version=$VERSION \
           -Djreleaser.git-root-search=false \
-          -Djreleaser.dry-run=true
+          -Djreleaser.dry-run=true \
+          -Djreleaser.github.token=$GITHUB_TOKEN
         
         echo "✅ JReleaser configuration validation completed successfully"
 
@@ -244,24 +257,124 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
 
   notification:
-    name: Release Candidate Notification
-    needs: [run-sanity, build-artifacts, performance-benchmark]
+    name: Release Candidate Summary
+    needs: [validate, run-sanity, run-full-pipeline, performance-benchmark, build-artifacts]
     runs-on: ubuntu-latest
     if: always()
     
     steps:
-    - name: Create summary
+    - name: Create comprehensive release candidate summary
       run: |
         echo "# 🚀 Release Candidate Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "## Build Status:" >> $GITHUB_STEP_SUMMARY
-        echo "- Validation: ${{ needs.validate.result }}" >> $GITHUB_STEP_SUMMARY
-        echo "- Sanity Check: ${{ needs.run-sanity.result }}" >> $GITHUB_STEP_SUMMARY
-        echo "- Full Pipeline: ${{ needs.run-full-pipeline.result }}" >> $GITHUB_STEP_SUMMARY
-        echo "- Performance: ${{ needs.performance-benchmark.result }}" >> $GITHUB_STEP_SUMMARY
-        echo "- Artifacts: ${{ needs.build-artifacts.result }}" >> $GITHUB_STEP_SUMMARY
+        
+        # Build Status Table
+        echo "## 📊 Pipeline Status" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "## Next Steps:" >> $GITHUB_STEP_SUMMARY
-        echo "1. Review test results and artifacts" >> $GITHUB_STEP_SUMMARY
-        echo "2. Perform manual testing if needed" >> $GITHUB_STEP_SUMMARY
-        echo "3. Create release tag when ready" >> $GITHUB_STEP_SUMMARY
+        echo "| Phase | Status | Description |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------|--------|-------------|" >> $GITHUB_STEP_SUMMARY
+        
+        # Validation
+        if [[ "${{ needs.validate.result }}" == "success" ]]; then
+          echo "| 🔍 Validation | ✅ Passed | Version consistency and SNAPSHOT checks |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| 🔍 Validation | ❌ Failed | Version consistency and SNAPSHOT checks |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Sanity Check
+        if [[ "${{ needs.run-sanity.result }}" == "success" ]]; then
+          echo "| 🧹 Sanity Check | ✅ Passed | Code formatting and compilation |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| 🧹 Sanity Check | ❌ Failed | Code formatting and compilation |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Full Pipeline
+        if [[ "${{ needs.run-full-pipeline.result }}" == "success" ]]; then
+          echo "| 🧪 Test Pipeline | ✅ Passed | Unit, integration tests, and coverage |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| 🧪 Test Pipeline | ❌ Failed | Unit, integration tests, and coverage |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Performance
+        if [[ "${{ needs.performance-benchmark.result }}" == "success" ]]; then
+          echo "| ⚡ Performance | ✅ Passed | Performance benchmarks and regression tests |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| ⚡ Performance | ❌ Failed | Performance benchmarks and regression tests |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Artifacts
+        if [[ "${{ needs.build-artifacts.result }}" == "success" ]]; then
+          echo "| 📦 Artifacts | ✅ Built | JAR, sources, Javadoc, and checksums |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| 📦 Artifacts | ❌ Failed | JAR, sources, Javadoc, and checksums |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Test Results Overview
+        echo "## 🧪 Test Results Overview" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Test Categories Executed:" >> $GITHUB_STEP_SUMMARY
+        echo "- **✅ Unit Tests**: Individual component functionality verification" >> $GITHUB_STEP_SUMMARY
+        echo "- **✅ Integration Tests**: End-to-end testing with DynamoDB Local" >> $GITHUB_STEP_SUMMARY
+        echo "- **✅ Performance Tests**: Execution time and memory usage validation" >> $GITHUB_STEP_SUMMARY
+        echo "- **✅ Code Coverage**: Minimum 80% coverage requirement validation" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Quality Gates:" >> $GITHUB_STEP_SUMMARY
+        echo "- **Code Formatting**: Spotless validation" >> $GITHUB_STEP_SUMMARY
+        echo "- **Compilation**: Java 21 compatibility" >> $GITHUB_STEP_SUMMARY
+        echo "- **Documentation**: Javadoc generation" >> $GITHUB_STEP_SUMMARY
+        echo "- **Dependencies**: SNAPSHOT dependency validation" >> $GITHUB_STEP_SUMMARY
+        echo "- **Release Config**: JReleaser dry-run validation" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Artifacts
+        echo "## 📦 Release Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Available Artifacts:" >> $GITHUB_STEP_SUMMARY
+        echo "- **JAR with Dependencies**: Complete standalone JAR" >> $GITHUB_STEP_SUMMARY
+        echo "- **Sources JAR**: Source code archive" >> $GITHUB_STEP_SUMMARY
+        echo "- **Javadoc JAR**: API documentation" >> $GITHUB_STEP_SUMMARY
+        echo "- **Checksums**: SHA256 and MD5 verification files" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "*All artifacts are available in the workflow artifacts section*" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Release Readiness
+        echo "## 🎯 Release Readiness Assessment" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [[ "${{ needs.validate.result }}" == "success" && 
+              "${{ needs.run-sanity.result }}" == "success" && 
+              "${{ needs.run-full-pipeline.result }}" == "success" && 
+              "${{ needs.performance-benchmark.result }}" == "success" && 
+              "${{ needs.build-artifacts.result }}" == "success" ]]; then
+          echo "### ✅ **Release candidate is ready for production!**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. 📋 **Review**: Check test reports and artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "2. 🧪 **Manual Testing**: Perform any additional manual validation" >> $GITHUB_STEP_SUMMARY
+          echo "3. 🏷️ **Create Tag**: \`git tag v{version}\` when ready for release" >> $GITHUB_STEP_SUMMARY
+          echo "4. 🚀 **Publish**: Push tag to trigger Maven Central release" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "### ❌ **Release candidate has issues that need resolution**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Required Actions:**" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.validate.result }}" != "success" ]]; then
+            echo "- 🔍 **Fix validation issues**: Check version consistency and dependencies" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [[ "${{ needs.run-sanity.result }}" != "success" ]]; then
+            echo "- 🧹 **Fix sanity issues**: Resolve formatting and compilation errors" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [[ "${{ needs.run-full-pipeline.result }}" != "success" ]]; then
+            echo "- 🧪 **Fix test failures**: Resolve unit, integration, or coverage issues" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [[ "${{ needs.performance-benchmark.result }}" != "success" ]]; then
+            echo "- ⚡ **Fix performance issues**: Resolve benchmark failures or regressions" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [[ "${{ needs.build-artifacts.result }}" != "success" ]]; then
+            echo "- 📦 **Fix build issues**: Resolve artifact generation problems" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Review the failed workflow steps above for detailed error information." >> $GITHUB_STEP_SUMMARY
+        fi

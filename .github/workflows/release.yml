@@ -55,11 +55,13 @@ jobs:
       - name: Run JReleaser
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JRELEASER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Run JReleaser release using Maven Wrapper and custom settings
           ./mvnw -s settings.xml jreleaser:full-release \
             -Djreleaser.project.version=${{ steps.version.outputs.version }} \
-            -Djreleaser.git-root-search=false
+            -Djreleaser.git-root-search=false \
+            -Djreleaser.github.token=$GITHUB_TOKEN
       
       - name: Upload JReleaser outputs
         if: always()
