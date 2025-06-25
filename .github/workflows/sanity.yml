@@ -1,0 +1,70 @@
+name: Sanity
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - 'release/**'
+    tags-ignore:
+      - 'v*.*.*'
+  pull_request:
+  workflow_call:
+    # This allows the workflow to be called from other workflows
+
+concurrency:
+  group: sanity-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  MAVEN_OPTS: -Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=${{ github.workspace }}/.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN
+
+jobs:
+  build:
+    name: Build & Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Make Maven Wrapper executable
+      run: chmod +x mvnw
+      
+    - name: Cache Maven packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2-
+
+    - name: Download dependencies
+      run: ./mvnw -B dependency:go-offline
+
+    - name: Check code formatting
+      run: ./mvnw -B spotless:check
+
+    - name: Compile sources
+      run: ./mvnw -B compile
+
+    - name: Validate Javadocs
+      run: ./mvnw -B javadoc:javadoc
+
+    - name: Create build summary
+      run: |
+        echo "# 🔍 Sanity Check Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Dependencies downloaded" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Code formatting validated" >> $GITHUB_STEP_SUMMARY  
+        echo "✅ Sources compiled successfully" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Javadocs generated without errors" >> $GITHUB_STEP_SUMMARY

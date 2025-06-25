@@ -1,0 +1,296 @@
+name: Performance Benchmark
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ opened, synchronize, labeled ]
+  schedule:
+    - cron: '0 2 * * 0' # Weekly on Sunday at 2 AM UTC
+  workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: 'Baseline reference (branch/tag/commit) to compare against'
+        required: false
+  workflow_call:
+    # This allows the workflow to be called from other workflows
+    inputs:
+      baseline_ref:
+        description: 'Baseline reference (branch/tag/commit) to compare against'
+        required: false
+        default: 'main'
+        type: string
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write  # Required for commenting on PRs
+
+env:
+  MAVEN_OPTS: -Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=${{ github.workspace }}/.m2/repository
+
+jobs:
+  benchmark:
+    name: Run Performance Benchmarks
+    runs-on: ubuntu-latest
+    # Only run on PR if it has the 'performance' label or on main branch
+    if: |
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/main' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'performance'))
+    
+    steps:
+    - name: Checkout current code
+      uses: actions/checkout@v4
+      with:
+        path: current
+
+    - name: Checkout baseline code
+      if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.baseline_ref || 'main' }}
+        path: baseline
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'maven'
+
+    # Ensure Docker daemon is available for Testcontainers
+    - name: Start Docker daemon
+      run: |
+        sudo systemctl start docker
+        docker info
+
+    - name: Setup performance test environment
+      run: |
+        # Configure environment for consistent benchmarking
+        echo "Setting up performance test environment..."
+        
+        # Disable CPU frequency scaling for consistent results
+        echo 'JAVA_OPTS="-XX:+UseG1GC -XX:+UseStringDeduplication -Xms2g -Xmx2g"' >> $GITHUB_ENV
+        
+        # Install system monitoring tools
+        sudo apt-get update
+        sudo apt-get install -y htop iotop
+
+    - name: Run baseline benchmarks
+      if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+      working-directory: baseline
+      run: |
+        chmod +x mvnw
+        ./mvnw -B clean compile -Dmaven.javadoc.skip=true
+        ./mvnw -B test -Dtest="*PerformanceTest" \
+          -Dmaven.test.redirectTestOutputToFile=true \
+          -Dmaven.javadoc.skip=true
+      env:
+        # Testcontainers configuration
+        TESTCONTAINERS_RYUK_DISABLED: true
+        TESTCONTAINERS_CHECKS_DISABLE: true
+        # AWS credentials for tests
+        AWS_ACCESS_KEY_ID: fakeMyKeyId
+        AWS_SECRET_ACCESS_KEY: fakeSecretAccessKey
+        AWS_DEFAULT_REGION: us-east-1
+        JAVA_OPTS: ${{ env.JAVA_OPTS }}
+
+    - name: Save baseline results
+      if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+      run: |
+        mkdir -p benchmark-results/baseline
+        cp baseline/target/surefire-reports/*.xml benchmark-results/baseline/ || true
+        cp baseline/target/surefire-reports/*.txt benchmark-results/baseline/ || true
+
+    - name: Run current benchmarks
+      working-directory: current
+      run: |
+        chmod +x mvnw
+        ./mvnw -B clean compile -Dmaven.javadoc.skip=true
+        ./mvnw -B test -Dtest="*PerformanceTest" \
+          -Dmaven.test.redirectTestOutputToFile=true \
+          -Dmaven.javadoc.skip=true
+      env:
+        # Testcontainers configuration
+        TESTCONTAINERS_RYUK_DISABLED: true
+        TESTCONTAINERS_CHECKS_DISABLE: true
+        # AWS credentials for tests
+        AWS_ACCESS_KEY_ID: fakeMyKeyId
+        AWS_SECRET_ACCESS_KEY: fakeSecretAccessKey
+        AWS_DEFAULT_REGION: us-east-1
+        JAVA_OPTS: ${{ env.JAVA_OPTS }}
+
+    - name: Save current results
+      run: |
+        mkdir -p benchmark-results/current
+        cp current/target/surefire-reports/*.xml benchmark-results/current/ || true
+        cp current/target/surefire-reports/*.txt benchmark-results/current/ || true
+
+    - name: Analyze performance results
+      run: |
+        cat > analyze_performance.py << 'EOF'
+        import xml.etree.ElementTree as ET
+        import os
+        import sys
+        import json
+        from pathlib import Path
+
+        def parse_test_results(results_dir):
+            results = {}
+            for xml_file in Path(results_dir).glob("*.xml"):
+                try:
+                    tree = ET.parse(xml_file)
+                    root = tree.getroot()
+                    
+                    for testcase in root.findall('.//testcase'):
+                        test_name = testcase.get('name', 'unknown')
+                        test_time = float(testcase.get('time', 0))
+                        test_class = testcase.get('classname', 'unknown')
+                        
+                        if 'Performance' in test_class:
+                            full_name = f"{test_class}.{test_name}"
+                            results[full_name] = test_time
+                            
+                except Exception as e:
+                    print(f"Error parsing {xml_file}: {e}")
+            
+            return results
+
+        def compare_results(baseline, current):
+            comparison = {}
+            
+            for test_name in current.keys():
+                current_time = current[test_name]
+                baseline_time = baseline.get(test_name)
+                
+                if baseline_time:
+                    change_pct = ((current_time - baseline_time) / baseline_time) * 100
+                    comparison[test_name] = {
+                        'baseline': baseline_time,
+                        'current': current_time,
+                        'change_pct': change_pct,
+                        'regression': change_pct > 10  # 10% threshold
+                    }
+                else:
+                    comparison[test_name] = {
+                        'baseline': None,
+                        'current': current_time,
+                        'change_pct': None,
+                        'regression': False
+                    }
+            
+            return comparison
+
+        def generate_report(comparison, output_file):
+            with open(output_file, 'w') as f:
+                f.write("# Performance Benchmark Report\n\n")
+                
+                regressions = [k for k, v in comparison.items() if v['regression']]
+                improvements = [k for k, v in comparison.items() if v.get('change_pct', 0) < -5]
+                
+                if regressions:
+                    f.write("## ⚠️ Performance Regressions Detected\n\n")
+                    for test in regressions:
+                        data = comparison[test]
+                        f.write(f"- **{test}**: {data['baseline']:.3f}s → {data['current']:.3f}s ({data['change_pct']:+.1f}%)\n")
+                    f.write("\n")
+                
+                if improvements:
+                    f.write("## 🚀 Performance Improvements\n\n")
+                    for test in improvements:
+                        data = comparison[test]
+                        f.write(f"- **{test}**: {data['baseline']:.3f}s → {data['current']:.3f}s ({data['change_pct']:+.1f}%)\n")
+                    f.write("\n")
+                
+                f.write("## 📊 All Results\n\n")
+                f.write("| Test | Baseline | Current | Change |\n")
+                f.write("|------|----------|---------|--------|\n")
+                
+                for test_name, data in sorted(comparison.items()):
+                    baseline = f"{data['baseline']:.3f}s" if data['baseline'] else "N/A"
+                    current = f"{data['current']:.3f}s"
+                    change = f"{data['change_pct']:+.1f}%" if data['change_pct'] is not None else "NEW"
+                    f.write(f"| `{test_name}` | {baseline} | {current} | {change} |\n")
+            
+            return len(regressions) == 0
+
+        # Main execution
+        baseline_dir = "benchmark-results/baseline"
+        current_dir = "benchmark-results/current"
+
+        current_results = parse_test_results(current_dir)
+        print(f"Found {len(current_results)} performance test results")
+
+        if os.path.exists(baseline_dir):
+            baseline_results = parse_test_results(baseline_dir)
+            comparison = compare_results(baseline_results, current_results)
+            success = generate_report(comparison, "benchmark-report.md")
+            
+            # Output for GitHub Actions
+            print(f"::set-output name=has_regressions::{not success}")
+            
+            if not success:
+                print("::warning::Performance regressions detected!")
+                sys.exit(1)
+        else:
+            print("No baseline results found, generating current results only")
+            with open("benchmark-report.md", "w") as f:
+                f.write("# Performance Benchmark Report\n\n")
+                f.write("## 📊 Current Results (No Baseline)\n\n")
+                f.write("| Test | Time |\n")
+                f.write("|------|------|\n")
+                for test_name, time in sorted(current_results.items()):
+                    f.write(f"| `{test_name}` | {time:.3f}s |\n")
+        EOF
+
+        python3 analyze_performance.py
+
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results-${{ github.run_number }}
+        path: |
+          benchmark-results/
+          benchmark-report.md
+        retention-days: 30
+
+    - name: Comment PR with benchmark results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = 'benchmark-report.md';
+          
+          if (fs.existsSync(path)) {
+            const report = fs.readFileSync(path, 'utf8');
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+          }
+
+    - name: Store benchmark results for trending
+      if: github.ref == 'refs/heads/main'
+      run: |
+        # Store results with timestamp for historical tracking
+        mkdir -p benchmark-history
+        TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+        cp benchmark-report.md "benchmark-history/benchmark-${TIMESTAMP}.md"
+        echo "Results stored for historical tracking"
+
+    - name: Upload historical data
+      if: github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-history
+        path: benchmark-history/
+        retention-days: 90

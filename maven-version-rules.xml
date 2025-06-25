@@ -1,0 +1,18 @@
+<ruleset comparisonMethod="maven"
+    xmlns="https://www.mojohaus.org/VERSIONS/RULE/2.1.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="https://www.mojohaus.org/VERSIONS/RULE/2.1.0 https://www.mojohaus.org/versions/versions-model/xsd/rule-2.1.0.xsd">
+    <ignoreVersions>
+        <!-- Ignore Alpha's, Beta's, release candidates and milestones -->
+        <ignoreVersion type="regex">(?i).*Alpha(?:-?\d+)?</ignoreVersion>
+        <ignoreVersion type="regex">(?i).*Beta(?:-?\d+)?</ignoreVersion>
+        <ignoreVersion type="regex">(?i).*-B(?:-?\d+)?</ignoreVersion>
+        <ignoreVersion type="regex">(?i).*RC(?:-?\d+)?</ignoreVersion>
+        <ignoreVersion type="regex">(?i).*EA(?:-?\d+)?</ignoreVersion>
+        <ignoreVersion type="regex">(?i).*SNAPSHOT(?:-?\d+)?</ignoreVersion>
+        <!-- Sometimes Milestone releases are fair enough for testing libs like JUnit-->
+        <ignoreVersion type="regex">(?i).*M(?:-?\d+)?</ignoreVersion>
+    </ignoreVersions>
+    <rules>
+    </rules>
+</ruleset>

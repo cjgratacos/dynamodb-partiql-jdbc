@@ -1,0 +1,67 @@
+version: 2
+updates:
+  # Maven dependencies
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "US/Eastern"
+    open-pull-requests-limit: 10
+    target-branch: "develop"
+    reviewers:
+      - "cjgratacos"
+    assignees:
+      - "cjgratacos"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "java"
+    ignore:
+      # Ignore major version updates for stable dependencies
+      - dependency-name: "org.junit.jupiter:*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "org.mockito:*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      junit:
+        patterns:
+          - "org.junit.jupiter:*"
+          - "org.junit.platform:*"
+      mockito:
+        patterns:
+          - "org.mockito:*"
+      aws-sdk:
+        patterns:
+          - "software.amazon.awssdk:*"
+      testcontainers:
+        patterns:
+          - "org.testcontainers:*"
+      maven-plugins:
+        patterns:
+          - "*maven-plugin"
+          - "org.apache.maven.plugins:*"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "US/Eastern"
+    open-pull-requests-limit: 5
+    target-branch: "develop"
+    reviewers:
+      - "cjgratacos"
+    assignees:
+      - "cjgratacos"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"

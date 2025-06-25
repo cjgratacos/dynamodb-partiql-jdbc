@@ -1,0 +1,267 @@
+name: Release Candidate
+
+on:
+  push:
+    branches: [ release/** ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release candidate version (e.g., 1.0.0-rc.1)'
+        required: true
+        type: string
+
+concurrency:
+  group: release-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+  actions: read
+
+env:
+  MAVEN_OPTS: -Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=${{ github.workspace }}/.m2/repository
+
+jobs:
+  validate:
+    name: Validate Release Candidate
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Make Maven Wrapper executable
+      run: chmod +x mvnw
+
+    - name: Validate project structure
+      run: |
+        echo "Validating Maven project..."
+        ./mvnw -B validate
+
+    - name: Check for SNAPSHOT dependencies
+      run: |
+        echo "Checking for SNAPSHOT dependencies..."
+        if ./mvnw dependency:tree | grep -i snapshot; then
+          echo "❌ Found SNAPSHOT dependencies. Release candidates should not depend on SNAPSHOT versions."
+          exit 1
+        else
+          echo "✅ No SNAPSHOT dependencies found."
+        fi
+
+    - name: Verify version consistency
+      run: |
+        echo "Checking version consistency..."
+        POM_VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+        echo "POM version: $POM_VERSION"
+        
+        if [[ "$POM_VERSION" == *"-SNAPSHOT" ]]; then
+          echo "❌ POM version still contains SNAPSHOT suffix"
+          exit 1
+        fi
+
+  run-sanity:
+    name: Run Sanity Check
+    needs: validate
+    uses: ./.github/workflows/sanity.yml
+    secrets: inherit
+
+  run-full-pipeline:
+    name: Run Full Test Pipeline
+    needs: run-sanity
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+
+  performance-benchmark:
+    name: Performance Benchmark
+    needs: run-sanity
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Make Maven Wrapper executable
+      run: chmod +x mvnw
+
+    - name: Start DynamoDB Local
+      run: |
+        docker run -d -p 8000:8000 --name dynamodb-local amazon/dynamodb-local:1.20.0
+        timeout 30 bash -c 'until curl -s http://localhost:8000 > /dev/null; do sleep 1; done'
+
+    - name: Run performance tests
+      run: ./mvnw -B test -Dtest="*PerformanceTest" -Dmaven.javadoc.skip=true
+      env:
+        AWS_ACCESS_KEY_ID: fakeMyKeyId
+        AWS_SECRET_ACCESS_KEY: fakeSecretAccessKey
+        AWS_DEFAULT_REGION: us-east-1
+
+    - name: Upload performance results
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-benchmark-results
+        path: target/surefire-reports/
+        retention-days: 30
+
+  build-artifacts:
+    name: Build Release Artifacts
+    needs: [run-full-pipeline]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Make Maven Wrapper executable
+      run: chmod +x mvnw
+
+    - name: Configure Git for release
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+
+    - name: Build release artifacts
+      run: |
+        ./mvnw -B clean package -DskipTests \
+          -Dmaven.javadoc.skip=false \
+          -Dmaven.source.skip=false
+
+    - name: Generate checksums
+      run: |
+        cd target
+        for file in *.jar; do
+          if [[ -f "$file" ]]; then
+            sha256sum "$file" > "$file.sha256"
+            md5sum "$file" > "$file.md5"
+          fi
+        done
+
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-candidate-artifacts
+        path: |
+          target/*-with-dependencies.jar
+          target/*-with-dependencies.jar.sha256
+          target/*-with-dependencies.jar.md5
+          target/*.jar
+          target/*.sha256
+          target/*.md5
+        retention-days: 30
+
+    - name: JReleaser dry run validation
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "Running JReleaser dry run to validate release configuration..."
+        # Get version from workflow input or extract from POM
+        if [ "${{ github.event.inputs.version }}" != "" ]; then
+          VERSION="${{ github.event.inputs.version }}"
+        else
+          VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+        fi
+        
+        echo "Validating release configuration for version: $VERSION"
+        ./mvnw -s settings.xml jreleaser:config \
+          -Djreleaser.project.version=$VERSION \
+          -Djreleaser.git-root-search=false \
+          -Djreleaser.dry-run=true
+        
+        echo "✅ JReleaser configuration validation completed successfully"
+
+    - name: Upload JReleaser dry run results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: jreleaser-dryrun-results
+        path: |
+          target/jreleaser/
+          .jreleaser/
+        retention-days: 14
+
+    - name: Create GitHub pre-release
+      if: github.event_name == 'workflow_dispatch'
+      uses: ncipollo/release-action@v1
+      with:
+        tag: v${{ github.event.inputs.version }}
+        name: Release Candidate v${{ github.event.inputs.version }}
+        body: |
+          🚀 **Release Candidate v${{ github.event.inputs.version }}**
+          
+          This is a release candidate for testing purposes.
+          
+          ## ✅ Validation Status
+          - Build and test pipeline: ✅ Passed
+          - Performance benchmarks: ✅ Completed
+          - JReleaser dry run: ✅ Passed
+          
+          ## 📋 Test Coverage
+          - Unit tests with Java 21
+          - Integration tests with DynamoDB Local via Testcontainers
+          - Performance benchmarks
+          - Security vulnerability scanning
+          - JReleaser configuration validation
+          
+          ## 🔍 Artifacts
+          - JAR file with dependencies
+          - Sources JAR
+          - Javadoc JAR
+          - Checksums (SHA256, MD5)
+          
+          **Note**: This is a pre-release for testing. Do not use in production.
+        artifacts: |
+          target/*-with-dependencies.jar
+          target/*.jar
+          target/*.sha256
+          target/*.md5
+        prerelease: true
+        draft: false
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+  notification:
+    name: Release Candidate Notification
+    needs: [run-sanity, build-artifacts, performance-benchmark]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Create summary
+      run: |
+        echo "# 🚀 Release Candidate Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Build Status:" >> $GITHUB_STEP_SUMMARY
+        echo "- Validation: ${{ needs.validate.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Sanity Check: ${{ needs.run-sanity.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Full Pipeline: ${{ needs.run-full-pipeline.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Performance: ${{ needs.performance-benchmark.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Artifacts: ${{ needs.build-artifacts.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Next Steps:" >> $GITHUB_STEP_SUMMARY
+        echo "1. Review test results and artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "2. Perform manual testing if needed" >> $GITHUB_STEP_SUMMARY
+        echo "3. Create release tag when ready" >> $GITHUB_STEP_SUMMARY

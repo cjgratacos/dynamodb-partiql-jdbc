@@ -1,0 +1,402 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.cjgratacos.jdbc</groupId>
+  <artifactId>dynamodb-partiql</artifactId>
+  <packaging>jar</packaging>
+  <version>1.0-SNAPSHOT</version>
+  <name>Dynamodb PartiQL JDBC Driver</name>
+  <description>Dynamodb PartiQL JDBC Driver</description>
+  <url>https://github.com/cjgratacos/dynamodb-partiql-jdbc</url>
+  <scm>
+    <url>scm:git:git@github.com/cjgratacos/dynamodb-partiql-jdbc.git</url>
+  </scm>
+  <issueManagement>
+    <url>https://github.com/cjgratacos/dynamodb-partiql-jdbc/issues</url>
+  </issueManagement>
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>cj</id>
+      <name>Carlos Gratacos</name>
+      <email>github@stackframe.mozmail.com</email>
+    </developer>
+  </developers>
+  <properties>
+    <!-- Maven Props -->
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <maven.compiler.release>21</maven.compiler.release>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <!-- Plugins -->
+    <spotless.maven.plugin.version>2.44.3</spotless.maven.plugin.version>
+    <google.java.format.version>1.25.0</google.java.format.version>
+    <maven.surefire.plugin.version>3.5.3</maven.surefire.plugin.version>
+    <maven.source.plugin.version>3.3.1</maven.source.plugin.version>
+    <maven.javadoc.plugin.version>3.11.2</maven.javadoc.plugin.version>
+    <jreleaser.plugin.version>1.17.0</jreleaser.plugin.version>
+    <maven.shade.plugin.version>3.6.0</maven.shade.plugin.version>
+    <!-- Dependencies -->
+    <aws.java.sdk.version>2.31.66</aws.java.sdk.version>
+    <partiql.version>1.2.1</partiql.version>
+    <testcontainers.version>1.21.1</testcontainers.version>
+    <slf4j.version>2.0.17</slf4j.version>
+    <junit.jupiter.version>5.13.1</junit.jupiter.version>
+    <assertj.version>3.27.3</assertj.version>
+    <mockito.version>5.18.0</mockito.version>
+    <mockito.junit.jupiter.version>5.18.0</mockito.junit.jupiter.version>
+  </properties>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>bom</artifactId>
+        <version>${aws.java.sdk.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit</groupId>
+        <artifactId>junit-bom</artifactId>
+        <version>${junit.jupiter.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-bom</artifactId>
+        <version>${testcontainers.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+  <dependencies>
+    <!-- AWS SDK -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>dynamodb</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>sts</artifactId>
+    </dependency>
+    <!-- PartiQL -->
+    <dependency>
+      <groupId>org.partiql</groupId>
+      <artifactId>partiql-lang</artifactId>
+      <version>${partiql.version}</version>
+    </dependency>
+    <!-- Logging Facade -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>${slf4j.version}</version>
+    </dependency>
+    <!-- Test Dependencies -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <version>${junit.jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+      <version>${junit.jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <version>${junit.jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>${assertj.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>${mockito.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-junit-jupiter</artifactId>
+      <version>${mockito.junit.jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>dynalite</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${maven.surefire.plugin.version}</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>${maven.source.plugin.version}</version>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>${maven.javadoc.plugin.version}</version>
+        <configuration>
+          <failOnError>true</failOnError>
+        </configuration>
+        <executions>
+          <execution>
+            <id>attach-javadocs</id>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>versions-maven-plugin</artifactId>
+        <version>2.18.0</version>
+        <inherited>true</inherited>
+        <configuration>
+          <outputFile>outdated-dependencies.txt</outputFile>
+          <rulesUri>file:///${session.executionRootDirectory}/maven-version-rules.xml</rulesUri>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>0.8.13</version>
+        <executions>
+          <execution>
+            <id>prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>default-report</id>
+            <phase>test</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>${maven.shade.plugin.version}</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <shadedArtifactAttached>true</shadedArtifactAttached>
+              <shadedClassifierName>with-dependencies</shadedClassifierName>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <transformers>
+                <!-- Merge service files -->
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                <!-- Merge notice files -->
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                  <resource>META-INF/NOTICE</resource>
+                </transformer>
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                  <resource>META-INF/NOTICE.txt</resource>
+                </transformer>
+                <!-- Merge license files -->
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                  <resource>META-INF/LICENSE</resource>
+                </transformer>
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                  <resource>META-INF/LICENSE.txt</resource>
+                </transformer>
+                <!-- Merge dependencies files -->
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                  <resource>META-INF/DEPENDENCIES</resource>
+                </transformer>
+                <!-- Handle Kotlin module files -->
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                  <resource>META-INF/kotlinx-collections-immutable.kotlin_module</resource>
+                </transformer>
+                <!-- Handle Netty version properties -->
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                  <resource>META-INF/io.netty.versions.properties</resource>
+                </transformer>
+                <!-- Handle PartiQL properties -->
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                  <resource>partiql.properties</resource>
+                </transformer>
+                <!-- Manifest transformer (must be last) -->
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <manifestEntries>
+                    <Main-Class>org.cjgratacos.jdbc.DynamoDbDriver</Main-Class>
+                    <Implementation-Title>${project.name}</Implementation-Title>
+                    <Implementation-Version>${project.version}</Implementation-Version>
+                    <Implementation-Vendor>cjgratacos</Implementation-Vendor>
+                  </manifestEntries>
+                </transformer>
+              </transformers>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <!-- Exclude signature files -->
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                    <!-- Exclude module-info conflicts -->
+                    <exclude>META-INF/versions/9/module-info.class</exclude>
+                    <!-- Let transformers handle these -->
+                    <exclude>META-INF/MANIFEST.MF</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <version>${spotless.maven.plugin.version}</version>
+        <configuration>
+          <formats>
+            <format>
+              <excludes>
+              </excludes>
+              <includes>
+                <include>src/**/resources/*.properties</include>
+              </includes>
+              <trimTrailingWhitespace />
+              <endWithNewline />
+              <indent>
+                <tabs>true</tabs>
+                <spacesPerTab>4</spacesPerTab>
+              </indent>
+            </format>
+          </formats>
+          <java>
+            <googleJavaFormat>
+              <version>${google.java.format.version}</version>
+            </googleJavaFormat>
+          </java>
+        </configuration>
+      </plugin>
+      <!-- Releaser -->
+      <plugin>
+        <groupId>org.jreleaser</groupId>
+        <artifactId>jreleaser-maven-plugin</artifactId>
+        <version>${jreleaser.plugin.version}</version>
+        <configuration>
+          <release>
+            <github>
+              <owner>cjgratacos</owner>
+              <name>dynamodb-partiql-jdbc</name>
+              <changelog>
+                <enabled>true</enabled>
+                <format>MD</format>
+                <preset>conventional-commits</preset>
+                <skipMergeCommits>false</skipMergeCommits>
+                <hide>{"uncategorized": false}</hide>
+                <categorizers>
+                  <categorizer>feat:Features</categorizer>
+                  <categorizer>fix:Bug Fixes</categorizer>
+                  <categorizer>docs:Documentation</categorizer>
+                  <categorizer>style:Code Style</categorizer>
+                  <categorizer>refactor:Refactoring</categorizer>
+                  <categorizer>perf:Performance</categorizer>
+                  <categorizer>test:Tests</categorizer>
+                  <categorizer>chore:Maintenance</categorizer>
+                </categorizers>
+                <contentTemplate>templates/CHANGELOG.tpl</contentTemplate>
+                <contributors>
+                  <enabled>true</enabled>
+                </contributors>
+              </changelog>
+            </github>
+          </release>
+          <deploy>
+            <maven>
+              <central>
+                <active>RELEASE</active>
+                <verifyPom>true</verifyPom>
+                <generatePom>true</generatePom>
+              </central>
+              <github>
+                <active>ALWAYS</active>
+                <repository>cjgratacos/maven</repository>
+                <token>env:GITHUB_TOKEN</token>
+              </github>
+            </maven>
+          </deploy>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+  <distributionManagement>
+    <repository>
+      <id>github</id>
+      <name>GitHub Packages</name>
+      <url>https://maven.pkg.github.com/cjgratacos/maven</url>
+    </repository>
+  </distributionManagement>
+</project>

@@ -1,0 +1,96 @@
+name: Verify
+
+on:
+  workflow_run:
+    workflows: ["Sanity"]
+    types: [completed]
+    branches: ['**']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify:
+    # Add concurrency control to cancel in-progress runs
+    concurrency:
+        group: verify-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch || github.event.workflow_run.head_ref }}
+        cancel-in-progress: true
+        
+    # Only run if:
+    # 1. Sanity workflow succeeded
+    # 2. It's a PR (not direct pushes to main/release branches)
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
+
+    runs-on: ubuntu-latest
+      
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.workflow_run.head_sha || github.event.workflow_run.head_commit.id }}
+        fetch-depth: 0  # Full history needed for JReleaser
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Cache Maven packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.m2/repository
+          ~/.m2/wrapper
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+
+    
+    - name: Make Maven Wrapper executable
+      run: chmod +x mvnw
+
+    # Ensure Docker daemon is available for Testcontainers
+    - name: Start Docker daemon
+      run: |
+        sudo systemctl start docker
+        docker info
+
+    - name: Run unit tests without AWS environment variables
+      run: |
+        # Run unit tests first without AWS environment variables
+        unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION
+        ./mvnw -B test -Dtest="!*IntegrationTest*,!*Integration" -Dmaven.javadoc.skip=true
+
+    - name: Run integration tests with AWS credentials 
+      run: ./mvnw -B test -Dtest="*IntegrationTest*,*Integration" -Dmaven.javadoc.skip=true
+      env:
+        # Testcontainers configuration
+        TESTCONTAINERS_RYUK_DISABLED: true
+        TESTCONTAINERS_CHECKS_DISABLE: true
+        # AWS credentials for tests
+        AWS_ACCESS_KEY_ID: fakeMyKeyId
+        AWS_SECRET_ACCESS_KEY: fakeSecretAccessKey
+        AWS_DEFAULT_REGION: us-east-1
+
+    - name: Build final package
+      run: ./mvnw -B package -DskipTests -Dmaven.javadoc.skip=true
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: verify-test-results
+        path: target/surefire-reports/
+        retention-days: 14
+
+    - name: Upload coverage report  
+      uses: actions/upload-artifact@v4
+      with:
+        name: verify-coverage-report
+        path: target/site/jacoco/
+        retention-days: 30
+

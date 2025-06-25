@@ -1,0 +1,165 @@
+name: Main Branch Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: main-pipeline-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: read
+  actions: read
+  checks: write
+  pull-requests: write
+  statuses: write
+
+env:
+  MAVEN_OPTS: -Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=${{ github.workspace }}/.m2/repository
+
+jobs:
+  run-sanity:
+    name: Run Sanity Check
+    uses: ./.github/workflows/sanity.yml
+    secrets: inherit
+
+  run-full-pipeline:
+    name: Run Full Test Pipeline
+    needs: run-sanity
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+
+
+  run-benchmark:
+    name: Run Performance Benchmark
+    needs: run-sanity
+    uses: ./.github/workflows/benchmark.yml
+    secrets: inherit
+
+  validation-and-dry-run:
+    name: Validation and Dry Run
+    runs-on: ubuntu-latest
+    needs: [run-full-pipeline]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Make Maven Wrapper executable
+      run: chmod +x mvnw
+
+    - name: Validate project for release readiness
+      run: |
+        echo "Validating Maven project..."
+        ./mvnw -B validate
+
+    - name: Check for SNAPSHOT dependencies
+      run: |
+        echo "Checking for SNAPSHOT dependencies..."
+        if ./mvnw dependency:tree | grep -i snapshot; then
+          echo "⚠️ Found SNAPSHOT dependencies. This would block a release."
+          echo "SNAPSHOT dependencies found but not failing main branch validation."
+        else
+          echo "✅ No SNAPSHOT dependencies found."
+        fi
+
+    - name: Configure Git for JReleaser
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+
+    - name: Build release artifacts
+      run: |
+        ./mvnw -B clean package -DskipTests \
+          -Dmaven.javadoc.skip=false \
+          -Dmaven.source.skip=false
+
+    - name: Generate checksums
+      run: |
+        cd target
+        for file in *.jar; do
+          if [[ -f "$file" ]]; then
+            sha256sum "$file" > "$file.sha256"
+            md5sum "$file" > "$file.md5"
+          fi
+        done
+
+    - name: JReleaser dry run validation
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "Running JReleaser dry run to validate release configuration..."
+        VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+        echo "Validating release configuration for version: $VERSION"
+        
+        ./mvnw -s settings.xml jreleaser:config \
+          -Djreleaser.project.version=$VERSION \
+          -Djreleaser.git-root-search=false \
+          -Djreleaser.dry-run=true
+        
+        echo "✅ JReleaser configuration validation completed successfully"
+
+    - name: Upload main branch artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: main-branch-artifacts
+        path: |
+          target/*.jar
+          target/*.sha256
+          target/*.md5
+        retention-days: 14
+
+    - name: Upload JReleaser dry run results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: main-jreleaser-dryrun-results
+        path: |
+          target/jreleaser/
+          .jreleaser/
+        retention-days: 14
+
+  pipeline-summary:
+    name: Pipeline Summary
+    runs-on: ubuntu-latest
+    needs: [run-sanity, run-full-pipeline, run-benchmark, validation-and-dry-run]
+    if: always()
+    
+    steps:
+    - name: Create pipeline summary
+      run: |
+        echo "# 🚀 Main Branch Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Pipeline Status:" >> $GITHUB_STEP_SUMMARY
+        echo "- Sanity Check: ${{ needs.run-sanity.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Full Test Pipeline: ${{ needs.run-full-pipeline.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Performance Benchmark: ${{ needs.run-benchmark.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Validation & Dry Run: ${{ needs.validation-and-dry-run.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Ready for Release:" >> $GITHUB_STEP_SUMMARY
+        
+        if [[ "${{ needs.run-sanity.result }}" == "success" && 
+              "${{ needs.run-full-pipeline.result }}" == "success" && 
+              "${{ needs.validation-and-dry-run.result }}" == "success" ]]; then
+          echo "✅ **Main branch is ready for release**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To create a release:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Create release branch: \`git checkout -b release/x.y.z\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Update version and push for release candidate" >> $GITHUB_STEP_SUMMARY
+          echo "3. After validation, create tag: \`git tag vx.y.z\`" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Main branch has issues that need to be resolved**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Please check the failed jobs above and fix any issues." >> $GITHUB_STEP_SUMMARY
+        fi
