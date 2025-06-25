@@ -60,13 +60,15 @@ jobs:
         ./mvnw -B test -Dtest="!*IntegrationTest*,!*Integration" -Dmaven.javadoc.skip=true
 
     - name: Generate test report
-      uses: dorny/test-reporter@v1
+      uses: dorny/test-reporter@v2.1.0
       if: success() || failure()
       with:
         name: Unit Tests
         path: target/surefire-reports/*.xml
         reporter: java-junit
         fail-on-error: false
+        use-actions-summary: true
+        badge-title: unit-tests
 
   integration-tests:
     name: Integration Tests
@@ -108,13 +110,15 @@ jobs:
         AWS_DEFAULT_REGION: us-east-1
 
     - name: Generate integration test report
-      uses: dorny/test-reporter@v1
+      uses: dorny/test-reporter@v2.1.0
       if: success() || failure()
       with:
         name: Integration Tests
         path: target/surefire-reports/*.xml
         reporter: java-junit
         fail-on-error: false
+        use-actions-summary: true
+        badge-title: integration-tests
 
   code-coverage:
     name: Code Coverage

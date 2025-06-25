@@ -115,13 +115,16 @@ jobs:
         AWS_DEFAULT_REGION: us-east-1
 
     - name: Generate performance test report
-      uses: dorny/test-reporter@v1
+      uses: dorny/test-reporter@v2.1.0
       if: success() || failure()
       with:
         name: Release Candidate - Performance Tests
         path: target/surefire-reports/*.xml
         reporter: java-junit
         fail-on-error: false
+        use-actions-summary: true
+        badge-title: performance-tests
+        report-title: Performance Test Results
 
     - name: Upload performance results
       uses: actions/upload-artifact@v4

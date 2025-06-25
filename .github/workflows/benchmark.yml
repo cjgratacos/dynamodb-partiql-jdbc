@@ -108,14 +108,8 @@ jobs:
         cp baseline/target/surefire-reports/*.xml benchmark-results/baseline/ || true
         cp baseline/target/surefire-reports/*.txt benchmark-results/baseline/ || true
 
-    - name: Generate baseline performance test report
-      if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-      uses: dorny/test-reporter@v1
-      with:
-        name: Baseline Performance Tests
-        path: baseline/target/surefire-reports/*.xml
-        reporter: java-junit
-        fail-on-error: false
+    # Note: dorny/test-reporter skipped for baseline tests due to git repository structure
+    # Performance test results are handled by the comprehensive analysis below
 
     - name: Run current benchmarks
       working-directory: current
@@ -141,13 +135,8 @@ jobs:
         cp current/target/surefire-reports/*.xml benchmark-results/current/ || true
         cp current/target/surefire-reports/*.txt benchmark-results/current/ || true
 
-    - name: Generate current performance test report
-      uses: dorny/test-reporter@v1
-      with:
-        name: Current Performance Tests
-        path: current/target/surefire-reports/*.xml
-        reporter: java-junit
-        fail-on-error: false
+    # Note: dorny/test-reporter skipped for current tests due to git repository structure
+    # Performance test results are handled by the comprehensive analysis below
 
     - name: Analyze performance results
       run: |
