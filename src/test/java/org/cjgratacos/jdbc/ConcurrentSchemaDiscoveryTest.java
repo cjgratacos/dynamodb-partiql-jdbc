@@ -49,16 +49,32 @@ class ConcurrentSchemaDiscoveryTest {
     @Test
     @DisplayName("Single table async discovery succeeds")
     void singleTableAsyncDiscoverySucceeds() throws Exception {
-      // Given: Enabled concurrent discovery
+      // Given: Enabled concurrent discovery with mocked response
       properties.setProperty("concurrentSchemaDiscovery", "true");
+
+      // Mock the describe table call to return a valid response
+      when(mockClient.describeTable(any(DescribeTableRequest.class)))
+          .thenReturn(
+              DescribeTableResponse.builder()
+                  .table(
+                      TableDescription.builder()
+                          .tableName("test_table")
+                          .tableStatus(TableStatus.ACTIVE)
+                          .build())
+                  .build());
+
       discovery = new ConcurrentSchemaDiscovery(mockClient, properties);
 
       // When: Discovering a single table asynchronously
       final var future = discovery.discoverTableSchemaAsync("test_table");
 
-      // Then: Future should complete (even with mock that may throw)
+      // Then: Future should be created and eventually complete
       assertThat(future).isNotNull();
-      assertThat(future.isDone() || future.isCancelled()).isFalse(); // Still running or completed
+
+      // Wait for completion and verify it completes successfully
+      final var result = future.get(5, java.util.concurrent.TimeUnit.SECONDS);
+      assertThat(result).isNotNull();
+      assertThat(future.isDone()).isTrue();
     }
 
     @Test
