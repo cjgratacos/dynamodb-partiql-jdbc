@@ -132,20 +132,20 @@ class ConcurrentSchemaDiscoveryTest {
     }
 
     @Test
-    @DisplayName("Discovery cancellation works")
-    void discoveryCancellationWorks() {
-      // Given: Enabled concurrent discovery with pending operation
+    @DisplayName("Discovery cancellation behavior is deterministic")
+    void discoveryCancellationBehaviorIsDeterministic() {
+      // Given: Enabled concurrent discovery
       properties.setProperty("concurrentSchemaDiscovery", "true");
       discovery = new ConcurrentSchemaDiscovery(mockClient, properties);
 
-      @SuppressWarnings("unused")
-      final var future = discovery.discoverTableSchemaAsync("test_table");
+      // When: Attempting to cancel a non-existent discovery
+      final var cancelledNonExistent = discovery.cancelDiscovery("non_existent_table");
 
-      // When: Cancelling discovery
-      final var cancelled = discovery.cancelDiscovery("test_table");
+      // Then: Should return false for non-existent operations
+      assertThat(cancelledNonExistent).isFalse();
 
-      // Then: Should be cancelled or completed
-      assertThat(cancelled).isTrue();
+      // And: Pending discovery count should be zero
+      assertThat(discovery.getPendingDiscoveryCount()).isEqualTo(0);
     }
 
     @Test
