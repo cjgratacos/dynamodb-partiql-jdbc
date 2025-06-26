@@ -119,7 +119,7 @@ deploy:
         releaseRepository: true
         snapshotUrl: https://oss.sonatype.org/content/repositories/snapshots
         stagingRepositories:
-          - "{{artifactsDir}}/staging-deploy"
+          - target/staging-deploy
 
 checksum:
   individual: true
