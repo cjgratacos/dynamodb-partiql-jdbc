@@ -76,7 +76,6 @@ release:
         - title: "📝 Documentation"
           key: documentation
           labels:
-            - documentation
             - docs
         - title: "🔧 Maintenance"
           key: maintenance
@@ -125,6 +124,8 @@ deploy:
         closeRepository: true
         releaseRepository: true
         snapshotUrl: https://oss.sonatype.org/content/repositories/snapshots
+        stagingRepositories:
+          - target
 
 checksum:
   individual: true
