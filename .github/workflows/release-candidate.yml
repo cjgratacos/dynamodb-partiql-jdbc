@@ -216,10 +216,9 @@ jobs:
         fi
         
         echo "Validating release configuration for version: $VERSION"
-        ./mvnw -s settings.xml jreleaser:full-release \
+        ./mvnw -s settings.xml jreleaser:config \
           -Djreleaser.project.version=$VERSION \
           -Djreleaser.git-root-search=false \
-          -Djreleaser.dry-run=true \
           -Djreleaser.github.token=$GITHUB_TOKEN
         
         echo "✅ JReleaser dry run validation completed successfully"
@@ -258,7 +257,8 @@ jobs:
           - JReleaser configuration validation
           
           ## 🔍 Artifacts
-          - JAR file with dependencies
+          - JAR file
+          - JAR with dependencies (fat JAR)
           - Sources JAR
           - Javadoc JAR
           - Checksums (SHA256, MD5)

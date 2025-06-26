@@ -57,7 +57,6 @@ release:
       enabled: true
       preset: conventional-commits
       formatted: ALWAYS
-      format: MD
       contributors:
         enabled: true
       hide:
@@ -127,6 +126,7 @@ checksum:
 files:
   artifacts:
     - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}.jar"
+    - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}-with-dependencies.jar"
     - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}-sources.jar"
     - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}-javadoc.jar"
     - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}.pom"
