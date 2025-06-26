@@ -56,6 +56,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JRELEASER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JRELEASER_GPG_SECRET_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          JRELEASER_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          JRELEASER_NEXUS2_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          JRELEASER_NEXUS2_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
         run: |
           # Run JReleaser release using Maven Wrapper and custom settings
           ./mvnw -s settings.xml jreleaser:full-release \

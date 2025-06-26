@@ -347,47 +347,7 @@
         <artifactId>jreleaser-maven-plugin</artifactId>
         <version>${jreleaser.plugin.version}</version>
         <configuration>
-          <release>
-            <github>
-              <owner>cjgratacos</owner>
-              <name>dynamodb-partiql-jdbc</name>
-              <changelog>
-                <enabled>true</enabled>
-                <format>MD</format>
-                <preset>conventional-commits</preset>
-                <skipMergeCommits>false</skipMergeCommits>
-                <hide>{"uncategorized": false}</hide>
-                <categorizers>
-                  <categorizer>feat:Features</categorizer>
-                  <categorizer>fix:Bug Fixes</categorizer>
-                  <categorizer>docs:Documentation</categorizer>
-                  <categorizer>style:Code Style</categorizer>
-                  <categorizer>refactor:Refactoring</categorizer>
-                  <categorizer>perf:Performance</categorizer>
-                  <categorizer>test:Tests</categorizer>
-                  <categorizer>chore:Maintenance</categorizer>
-                </categorizers>
-                <contentTemplate>templates/CHANGELOG.tpl</contentTemplate>
-                <contributors>
-                  <enabled>true</enabled>
-                </contributors>
-              </changelog>
-            </github>
-          </release>
-          <deploy>
-            <maven>
-              <central>
-                <active>RELEASE</active>
-                <verifyPom>true</verifyPom>
-                <generatePom>true</generatePom>
-              </central>
-              <github>
-                <active>ALWAYS</active>
-                <repository>cjgratacos/maven</repository>
-                <token>env:GITHUB_TOKEN</token>
-              </github>
-            </maven>
-          </deploy>
+          <configFile>jreleaser.yml</configFile>
         </configuration>
       </plugin>
     </plugins>

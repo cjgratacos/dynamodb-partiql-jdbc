@@ -1,0 +1,169 @@
+# JReleaser configuration for DynamoDB PartiQL JDBC Driver
+# This file configures the release process for GitHub releases and Maven Central deployment
+
+environment:
+  properties:
+    artifactsDir: target
+
+project:
+  name: dynamodb-partiql-jdbc
+  description: "A JDBC driver for AWS DynamoDB that supports PartiQL, enabling seamless SQL-based interactions with DynamoDB through JDBC-compatible tools and applications."
+  longDescription: |
+    The DynamoDB PartiQL JDBC Driver is a comprehensive JDBC 4.2 implementation that enables 
+    SQL-based access to AWS DynamoDB using PartiQL. This driver allows developers to use 
+    familiar SQL tools and libraries with DynamoDB, including database management tools, 
+    BI applications, and standard JDBC-based frameworks.
+
+    Key features:
+    - Full JDBC 4.2 API implementation
+    - PartiQL SQL dialect support
+    - Connection pooling support
+    - Comprehensive metadata discovery
+    - Integration with popular database tools
+    - Type-safe result set handling
+    - Concurrent schema discovery
+    - Performance optimizations
+  links:
+    homepage: https://github.com/cjgratacos/dynamodb-partiql-jdbc
+  authors:
+    - Carlos Gratacos
+  license: MIT
+  inceptionYear: "2023"
+  tags:
+    - jdbc
+    - dynamodb
+    - partiql
+    - sql
+    - aws
+    - database
+    - driver
+  snapshot:
+    pattern: .*-SNAPSHOT
+    label: snapshot
+    fullChangelog: true
+
+release:
+  github:
+    owner: cjgratacos
+    name: dynamodb-partiql-jdbc
+    username: cjgratacos
+    tagName: v{{projectVersion}}
+    releaseName: "Release v{{projectVersion}}"
+    overwrite: false
+    update:
+      enabled: true
+      sections:
+        - ASSETS
+        - TITLE
+        - BODY
+    skipTag: false
+    skipRelease: false
+    milestone:
+      close: true
+    changelog:
+      enabled: true
+      preset: conventional-commits
+      formatted: ALWAYS
+      format: MD
+      contributors:
+        enabled: true
+      hide:
+        uncategorized: false
+      categories:
+        - title: "🚀 Features"
+          key: features
+          labels:
+            - feature
+            - enhancement
+        - title: "🐛 Bug Fixes"
+          key: fixes
+          labels:
+            - fix
+            - bug
+        - title: "📝 Documentation"
+          key: documentation
+          labels:
+            - documentation
+        - title: "🔧 Maintenance"
+          key: maintenance
+          labels:
+            - chore
+            - dependencies
+        - title: "⚡ Performance"
+          key: performance
+          labels:
+            - performance
+        - title: "✅ Tests"
+          key: tests
+          labels:
+            - test
+      labelers:
+        - label: feature
+          title: 'regex:^feat(\(.*\))?:.*'
+        - label: bug
+          title: 'regex:^fix(\(.*\))?:.*'
+        - label: documentation
+          title: 'regex:^docs(\(.*\))?:.*'
+        - label: chore
+          title: 'regex:^chore(\(.*\))?:.*'
+        - label: performance
+          title: 'regex:^perf(\(.*\))?:.*'
+        - label: test
+          title: 'regex:^test(\(.*\))?:.*'
+      replacers:
+        - search: '\s+#(\d+)'
+          replace: " (#$1)"
+
+signing:
+  active: RELEASE
+  armored: true
+  files: false
+  artifacts: true
+  checksums: true
+  mode: MEMORY
+
+deploy:
+  maven:
+    active: RELEASE
+    nexus2:
+      maven-central:
+        active: RELEASE
+        url: https://oss.sonatype.org/service/local
+        closeRepository: true
+        releaseRepository: true
+        stagingRepositories:
+          - target/staging-deploy
+        snapshotUrl: https://oss.sonatype.org/content/repositories/snapshots
+        applyMavenCentralRules: true
+
+distributions:
+  dynamodb-partiql-jdbc:
+    type: JAVA_BINARY
+    java:
+      mainClass: org.cjgratacos.jdbc.DynamoDbDriver
+      groupId: org.cjgratacos.jdbc
+      artifactId: dynamodb-partiql
+    artifacts:
+      - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}.jar"
+      - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}-sources.jar"
+      - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}-javadoc.jar"
+      - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}.pom"
+        transform: "{{projectName}}-{{projectVersion}}.pom"
+
+files:
+  artifacts:
+    - path: LICENSE
+    - path: README.md
+    - path: CHANGELOG.md
+      transform: CHANGELOG-{{projectVersion}}.md
+
+checksum:
+  individual: true
+  algorithms:
+    - SHA_256
+    - SHA_512
+
+catalog:
+  sbom:
+    cyclonedx:
+      active: RELEASE

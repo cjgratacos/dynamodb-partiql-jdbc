@@ -5,5 +5,10 @@
             <username>cjgratacos</username>
             <password>${env.GITHUB_TOKEN}</password>
         </server>
+        <server>
+            <id>maven-central</id>
+            <username>${env.JRELEASER_NEXUS2_USERNAME}</username>
+            <password>${env.JRELEASER_NEXUS2_PASSWORD}</password>
+        </server>
     </servers>
 </settings>

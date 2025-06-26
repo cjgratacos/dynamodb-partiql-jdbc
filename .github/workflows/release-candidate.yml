@@ -125,7 +125,6 @@ jobs:
         fail-on-error: false
         use-actions-summary: true
         badge-title: performance-tests
-        report-title: Performance Test Results
 
     - name: Upload performance results
       uses: actions/upload-artifact@v4

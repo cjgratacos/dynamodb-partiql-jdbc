@@ -202,10 +202,10 @@ Push tag v*.*.* → release.yml ONLY:
 |--------|---------|--------------|
 | `GITHUB_TOKEN` | API access, releases | Automatic (provided by GitHub) |
 | `CODECOV_TOKEN` | Coverage reporting | Optional (recommended) |
-| `GPG_PRIVATE_KEY` | Artifact signing | Maven Central publishing |
-| `GPG_PASSPHRASE` | GPG key passphrase | Maven Central publishing |
-| `MAVEN_CENTRAL_USERNAME` | Sonatype OSSRH username | Maven Central publishing |
-| `MAVEN_CENTRAL_PASSWORD` | Sonatype OSSRH password | Maven Central publishing |
+| `GPG_PRIVATE_KEY` | Artifact signing | **Required** for Maven Central |
+| `GPG_PASSPHRASE` | GPG key passphrase | **Required** for Maven Central |
+| `MAVEN_CENTRAL_USERNAME` | Sonatype OSSRH username | **Required** for Maven Central |
+| `MAVEN_CENTRAL_PASSWORD` | Sonatype OSSRH password | **Required** for Maven Central |
 
 **Note:** JReleaser requires the GitHub token to be available via multiple methods:
 - Environment variable: `JRELEASER_GITHUB_TOKEN`
@@ -227,6 +227,74 @@ TESTCONTAINERS_CHECKS_DISABLE: "true"
 
 # Maven optimization
 MAVEN_OPTS: "-Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=${{ github.workspace }}/.m2/repository"
+```
+
+## 🏆 Maven Central Deployment
+
+### Prerequisites for Publishing
+
+1. **Sonatype OSSRH Account**
+   - Register at https://issues.sonatype.org
+   - Create a JIRA ticket to claim your groupId (`org.cjgratacos.jdbc`)
+   - Wait for approval (usually 1-2 business days)
+
+2. **GPG Key Setup**
+   ```bash
+   # Generate a GPG key pair
+   gpg --gen-key
+   
+   # List keys to find your key ID
+   gpg --list-secret-keys --keyid-format LONG
+   
+   # Export private key (for GPG_PRIVATE_KEY secret)
+   gpg --armor --export-secret-keys YOUR_KEY_ID > private.key
+   
+   # Upload public key to keyservers
+   gpg --keyserver keyserver.ubuntu.com --send-keys YOUR_KEY_ID
+   gpg --keyserver keys.openpgp.org --send-keys YOUR_KEY_ID
+   ```
+
+3. **GitHub Secrets Configuration**
+   Configure these secrets in your repository settings:
+   - `GPG_PRIVATE_KEY`: Contents of `private.key` file
+   - `GPG_PASSPHRASE`: Passphrase used when generating the GPG key
+   - `MAVEN_CENTRAL_USERNAME`: Your Sonatype OSSRH username
+   - `MAVEN_CENTRAL_PASSWORD`: Your Sonatype OSSRH password
+
+### Release Process
+
+The `release.yml` workflow automatically:
+1. **Creates GitHub Release**: Generates changelog using conventional commits
+2. **Signs Artifacts**: Uses GPG key to sign all JARs and checksums
+3. **Deploys to Staging**: Uploads artifacts to Sonatype staging repository
+4. **Closes & Releases**: Automatically promotes from staging to Maven Central
+5. **Distribution**: Artifacts available in Maven Central within 30 minutes
+
+### Deployment Configuration
+
+The deployment is configured via `jreleaser.yml`:
+- **Signing**: Enabled for releases only, using in-memory GPG
+- **Checksums**: SHA-256 and SHA-512 for all artifacts
+- **Artifacts**: JAR, sources, javadoc, and POM files
+- **SBOM**: CycloneDX format for supply chain security
+
+### Verifying Deployment
+
+After release, verify your artifacts:
+- **Staging**: https://oss.sonatype.org/#stagingRepositories
+- **Released**: https://repo.maven.apache.org/maven2/org/cjgratacos/jdbc/dynamodb-partiql/
+- **Search**: https://search.maven.org/artifact/org.cjgratacos.jdbc/dynamodb-partiql
+
+### Maven Dependency
+
+Once published, users can add the dependency:
+
+```xml
+<dependency>
+    <groupId>org.cjgratacos.jdbc</groupId>
+    <artifactId>dynamodb-partiql</artifactId>
+    <version>1.0.0</version>
+</dependency>
 ```
 
 ## 🚀 Development Workflow
@@ -275,7 +343,7 @@ git push origin release/1.0.0
 # Production release
 git tag v1.0.0
 git push origin v1.0.0
-# → Triggers: release.yml (Maven Central publishing)
+# → Triggers: release.yml (GitHub release + Maven Central publishing)
 ```
 
 ## 📊 Quality Gates
