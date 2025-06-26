@@ -151,9 +151,8 @@ class ConcurrentSchemaDiscoveryTest {
     @Test
     @DisplayName("Discovery with timeout works")
     void discoveryWithTimeoutWorks() {
-      // Given: Enabled concurrent discovery with disabled mode to avoid mock setup complexity
+      // Given: Enabled concurrent discovery
       properties.setProperty("concurrentSchemaDiscovery", "true");
-      properties.setProperty("schemaDiscovery", "disabled");
       discovery = new ConcurrentSchemaDiscovery(mockClient, properties);
 
       // Setup mock to simulate a slow operation that will timeout
