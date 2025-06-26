@@ -13,16 +13,6 @@ project:
     SQL-based access to AWS DynamoDB using PartiQL. This driver allows developers to use 
     familiar SQL tools and libraries with DynamoDB, including database management tools, 
     BI applications, and standard JDBC-based frameworks.
-
-    Key features:
-    - Full JDBC 4.2 API implementation
-    - PartiQL SQL dialect support
-    - Connection pooling support
-    - Comprehensive metadata discovery
-    - Integration with popular database tools
-    - Type-safe result set handling
-    - Concurrent schema discovery
-    - Performance optimizations
   links:
     homepage: https://github.com/cjgratacos/dynamodb-partiql-jdbc
   authors:
@@ -39,8 +29,11 @@ project:
     - driver
   snapshot:
     pattern: .*-SNAPSHOT
-    label: snapshot
-    fullChangelog: true
+    label: early-access
+
+platform:
+  replacements:
+    aarch_64: aarch64
 
 release:
   github:
@@ -84,6 +77,7 @@ release:
           key: documentation
           labels:
             - documentation
+            - docs
         - title: "🔧 Maintenance"
           key: maintenance
           labels:
@@ -102,7 +96,7 @@ release:
           title: 'regex:^feat(\(.*\))?:.*'
         - label: bug
           title: 'regex:^fix(\(.*\))?:.*'
-        - label: documentation
+        - label: docs
           title: 'regex:^docs(\(.*\))?:.*'
         - label: chore
           title: 'regex:^chore(\(.*\))?:.*'
@@ -117,53 +111,28 @@ release:
 signing:
   active: RELEASE
   armored: true
-  files: false
-  artifacts: true
-  checksums: true
   mode: MEMORY
 
 deploy:
   maven:
     active: RELEASE
+    pomchecker:
+      version: 1.9.0
     nexus2:
       maven-central:
         active: RELEASE
         url: https://oss.sonatype.org/service/local
         closeRepository: true
         releaseRepository: true
-        stagingRepositories:
-          - target/staging-deploy
         snapshotUrl: https://oss.sonatype.org/content/repositories/snapshots
-        applyMavenCentralRules: true
-
-distributions:
-  dynamodb-partiql-jdbc:
-    type: JAVA_BINARY
-    java:
-      mainClass: org.cjgratacos.jdbc.DynamoDbDriver
-      groupId: org.cjgratacos.jdbc
-      artifactId: dynamodb-partiql
-    artifacts:
-      - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}.jar"
-      - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}-sources.jar"
-      - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}-javadoc.jar"
-      - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}.pom"
-        transform: "{{projectName}}-{{projectVersion}}.pom"
-
-files:
-  artifacts:
-    - path: LICENSE
-    - path: README.md
-    - path: CHANGELOG.md
-      transform: CHANGELOG-{{projectVersion}}.md
 
 checksum:
   individual: true
-  algorithms:
-    - SHA_256
-    - SHA_512
 
-catalog:
-  sbom:
-    cyclonedx:
-      active: RELEASE
+files:
+  artifacts:
+    - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}.jar"
+    - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}-sources.jar"
+    - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}-javadoc.jar"
+    - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}.pom"
+      transform: "{{projectName}}-{{projectVersion}}.pom"

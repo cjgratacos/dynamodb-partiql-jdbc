@@ -202,7 +202,8 @@ Push tag v*.*.* → release.yml ONLY:
 |--------|---------|--------------|
 | `GITHUB_TOKEN` | API access, releases | Automatic (provided by GitHub) |
 | `CODECOV_TOKEN` | Coverage reporting | Optional (recommended) |
-| `GPG_PRIVATE_KEY` | Artifact signing | **Required** for Maven Central |
+| `GPG_PRIVATE_KEY` | Artifact signing (private key) | **Required** for Maven Central |
+| `GPG_PUBLIC_KEY` | Artifact signing (public key) | **Required** for Maven Central |
 | `GPG_PASSPHRASE` | GPG key passphrase | **Required** for Maven Central |
 | `MAVEN_CENTRAL_USERNAME` | Sonatype OSSRH username | **Required** for Maven Central |
 | `MAVEN_CENTRAL_PASSWORD` | Sonatype OSSRH password | **Required** for Maven Central |
@@ -242,21 +243,31 @@ MAVEN_OPTS: "-Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=${{ github.workspace }
    ```bash
    # Generate a GPG key pair
    gpg --gen-key
+   # Choose: RSA and RSA, 4096 bits, no expiration
    
    # List keys to find your key ID
    gpg --list-secret-keys --keyid-format LONG
+   # Example output:
+   # sec   rsa4096/ABCD1234EFGH5678 2024-01-01 [SC]
+   #       Key fingerprint = ....
+   # uid   Your Name <your.email@example.com>
    
    # Export private key (for GPG_PRIVATE_KEY secret)
-   gpg --armor --export-secret-keys YOUR_KEY_ID > private.key
+   gpg --armor --export-secret-keys ABCD1234EFGH5678 > private.key
+   
+   # Export public key (for GPG_PUBLIC_KEY secret)
+   gpg --armor --export ABCD1234EFGH5678 > public.key
    
    # Upload public key to keyservers
-   gpg --keyserver keyserver.ubuntu.com --send-keys YOUR_KEY_ID
-   gpg --keyserver keys.openpgp.org --send-keys YOUR_KEY_ID
+   gpg --keyserver keyserver.ubuntu.com --send-keys ABCD1234EFGH5678
+   gpg --keyserver keys.openpgp.org --send-keys ABCD1234EFGH5678
+   gpg --keyserver pgp.mit.edu --send-keys ABCD1234EFGH5678
    ```
 
 3. **GitHub Secrets Configuration**
-   Configure these secrets in your repository settings:
+   Configure these secrets in your repository settings (Settings → Secrets and variables → Actions):
    - `GPG_PRIVATE_KEY`: Contents of `private.key` file
+   - `GPG_PUBLIC_KEY`: Contents of `public.key` file
    - `GPG_PASSPHRASE`: Passphrase used when generating the GPG key
    - `MAVEN_CENTRAL_USERNAME`: Your Sonatype OSSRH username
    - `MAVEN_CENTRAL_PASSWORD`: Your Sonatype OSSRH password
@@ -274,9 +285,9 @@ The `release.yml` workflow automatically:
 
 The deployment is configured via `jreleaser.yml`:
 - **Signing**: Enabled for releases only, using in-memory GPG
-- **Checksums**: SHA-256 and SHA-512 for all artifacts
+- **Checksums**: Individual checksums for each artifact
 - **Artifacts**: JAR, sources, javadoc, and POM files
-- **SBOM**: CycloneDX format for supply chain security
+- **Targets**: Both GitHub releases and Maven Central
 
 ### Verifying Deployment
 
