@@ -356,7 +356,7 @@
     <repository>
       <id>github</id>
       <name>GitHub Packages</name>
-      <url>https://maven.pkg.github.com/cjgratacos/maven</url>
+      <url>https://maven.pkg.github.com/cjgratacos/dynamodb-partiql-jdbc</url>
     </repository>
   </distributionManagement>
 </project>
