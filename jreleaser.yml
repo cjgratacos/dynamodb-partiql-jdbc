@@ -126,8 +126,8 @@ checksum:
 
 files:
   artifacts:
-    - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}.jar"
-    - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}-sources.jar"
-    - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}-javadoc.jar"
-    - path: "{{artifactsDir}}/{{projectName}}-{{projectVersion}}.pom"
-      transform: "{{projectName}}-{{projectVersion}}.pom"
+    - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}.jar"
+    - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}-sources.jar"
+    - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}-javadoc.jar"
+    - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}.pom"
+      transform: "dynamodb-partiql-{{projectVersion}}.pom"

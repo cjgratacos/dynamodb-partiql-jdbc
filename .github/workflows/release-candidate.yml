@@ -164,6 +164,9 @@ jobs:
         ./mvnw -B clean package -DskipTests \
           -Dmaven.javadoc.skip=false \
           -Dmaven.source.skip=false
+        
+        # Also generate sources and javadoc JARs explicitly
+        ./mvnw -B source:jar javadoc:jar -DskipTests
 
     - name: Generate checksums
       run: |
