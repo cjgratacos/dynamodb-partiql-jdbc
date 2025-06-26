@@ -94,8 +94,7 @@ jobs:
           ./mvnw -s settings.xml jreleaser:full-release \
             -Djreleaser.project.version=${{ steps.version.outputs.version }} \
             -Djreleaser.git-root-search=false \
-            -Djreleaser.github.token=$GITHUB_TOKEN \
-            -X
+            -Djreleaser.github.token=$GITHUB_TOKEN
       
       - name: Upload JReleaser outputs
         if: always()

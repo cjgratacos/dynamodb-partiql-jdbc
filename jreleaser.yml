@@ -110,6 +110,11 @@ deploy:
     active: RELEASE
     pomchecker:
       version: 1.9.0
+    github:
+      github:
+        active: RELEASE
+        url: https://maven.pkg.github.com/cjgratacos/maven
+        authorization: BEARER
     nexus2:
       maven-central:
         active: RELEASE
