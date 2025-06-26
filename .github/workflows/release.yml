@@ -67,7 +67,7 @@ jobs:
           # Create staging directory for JReleaser
           mkdir -p target/staging-deploy
       
-      - name: Run JReleaser
+      - name: Run JReleaser for GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JRELEASER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -95,6 +95,31 @@ jobs:
             -Djreleaser.project.version=${{ steps.version.outputs.version }} \
             -Djreleaser.git-root-search=false \
             -Djreleaser.github.token=$GITHUB_TOKEN
+      
+      - name: Deploy to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Deploying to GitHub Packages..."
+          ./mvnw -B deploy -DskipTests \
+            -DaltDeploymentRepository=github::https://maven.pkg.github.com/cjgratacos/maven \
+            -s settings.xml
+      
+      - name: Deploy to Maven Central
+        env:
+          MAVEN_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "Deploying to Maven Central..."
+          # Import GPG key for signing
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          
+          # Deploy to Maven Central
+          ./mvnw -B deploy -DskipTests \
+            -DaltDeploymentRepository=ossrh::https://oss.sonatype.org/service/local/staging/deploy/maven2/ \
+            -Dgpg.passphrase="$GPG_PASSPHRASE" \
+            -P release
       
       - name: Upload JReleaser outputs
         if: always()

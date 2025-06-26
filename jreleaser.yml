@@ -1,39 +1,22 @@
 # JReleaser configuration for DynamoDB PartiQL JDBC Driver
-# This file configures the release process for GitHub releases and Maven Central deployment
-
-environment:
-  properties:
-    artifactsDir: target
 
 project:
   name: dynamodb-partiql-jdbc
-  description: "A JDBC driver for AWS DynamoDB that supports PartiQL, enabling seamless SQL-based interactions with DynamoDB through JDBC-compatible tools and applications."
+  description: "A JDBC driver for AWS DynamoDB that supports PartiQL"
   longDescription: |
-    The DynamoDB PartiQL JDBC Driver is a comprehensive JDBC 4.2 implementation that enables 
-    SQL-based access to AWS DynamoDB using PartiQL. This driver allows developers to use 
-    familiar SQL tools and libraries with DynamoDB, including database management tools, 
-    BI applications, and standard JDBC-based frameworks.
+    The DynamoDB PartiQL JDBC Driver enables SQL-based access to AWS DynamoDB 
+    using PartiQL through standard JDBC APIs.
   links:
     homepage: https://github.com/cjgratacos/dynamodb-partiql-jdbc
   authors:
     - Carlos Gratacos
   license: MIT
   inceptionYear: "2023"
-  tags:
-    - jdbc
-    - dynamodb
-    - partiql
-    - sql
-    - aws
-    - database
-    - driver
-  snapshot:
-    pattern: .*-SNAPSHOT
-    label: early-access
-
-platform:
-  replacements:
-    aarch_64: aarch64
+  stereotype: NONE
+  
+environment:
+  properties:
+    artifactsDir: target
 
 release:
   github:
@@ -45,96 +28,28 @@ release:
     overwrite: false
     update:
       enabled: true
-      sections:
-        - ASSETS
-        - TITLE
-        - BODY
     skipTag: false
     skipRelease: false
-    milestone:
-      close: true
     changelog:
       enabled: true
       preset: conventional-commits
       formatted: ALWAYS
       contributors:
         enabled: true
-      hide:
-        uncategorized: false
-      categories:
-        - title: "🚀 Features"
-          key: features
-          labels:
-            - feature
-            - enhancement
-        - title: "🐛 Bug Fixes"
-          key: fixes
-          labels:
-            - fix
-            - bug
-        - title: "🔧 Maintenance"
-          key: maintenance
-          labels:
-            - chore
-            - dependencies
-        - title: "⚡ Performance"
-          key: performance
-          labels:
-            - performance
-        - title: "✅ Tests"
-          key: tests
-          labels:
-            - test
-      labelers:
-        - label: feature
-          title: 'regex:^feat(\(.*\))?:.*'
-        - label: bug
-          title: 'regex:^fix(\(.*\))?:.*'
-        - label: chore
-          title: 'regex:^chore(\(.*\))?:.*'
-        - label: performance
-          title: 'regex:^perf(\(.*\))?:.*'
-        - label: test
-          title: 'regex:^test(\(.*\))?:.*'
-      replacers:
-        - search: '\s+#(\d+)'
-          replace: " (#$1)"
 
 signing:
   active: RELEASE
   armored: true
   mode: MEMORY
 
-deploy:
-  maven:
-    active: RELEASE
-    pomchecker:
-      version: 1.9.0
-    github:
-      github:
-        active: RELEASE
-        url: https://maven.pkg.github.com/cjgratacos/maven
-        authorization: BEARER
-        stagingRepositories:
-          - target/staging-deploy
-    nexus2:
-      maven-central:
-        active: RELEASE
-        url: https://oss.sonatype.org/service/local
-        closeRepository: true
-        releaseRepository: true
-        snapshotUrl: https://oss.sonatype.org/content/repositories/snapshots
-        stagingRepositories:
-          - target/staging-deploy
-
+# Checksums for release artifacts
 checksum:
   individual: true
 
+# Files for GitHub release
 files:
   artifacts:
     - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}.jar"
     - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}-with-dependencies.jar"
     - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}-sources.jar"
     - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}-javadoc.jar"
-    - path: "{{artifactsDir}}/dynamodb-partiql-{{projectVersion}}.pom"
-      transform: "dynamodb-partiql-{{projectVersion}}.pom"
