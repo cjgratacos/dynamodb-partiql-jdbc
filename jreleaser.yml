@@ -73,10 +73,6 @@ release:
           labels:
             - fix
             - bug
-        - title: "📝 Documentation"
-          key: documentation
-          labels:
-            - documentation
         - title: "🔧 Maintenance"
           key: maintenance
           labels:
@@ -95,8 +91,6 @@ release:
           title: 'regex:^feat(\(.*\))?:.*'
         - label: bug
           title: 'regex:^fix(\(.*\))?:.*'
-        - label: documentation
-          title: 'regex:^docs(\(.*\))?:.*'
         - label: chore
           title: 'regex:^chore(\(.*\))?:.*'
         - label: performance
