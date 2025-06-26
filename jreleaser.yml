@@ -115,6 +115,8 @@ deploy:
         active: RELEASE
         url: https://maven.pkg.github.com/cjgratacos/maven
         authorization: BEARER
+        stagingRepositories:
+          - target/staging-deploy
     nexus2:
       maven-central:
         active: RELEASE
