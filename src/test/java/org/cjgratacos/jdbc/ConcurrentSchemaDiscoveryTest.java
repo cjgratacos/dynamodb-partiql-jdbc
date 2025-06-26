@@ -3,6 +3,7 @@ package org.cjgratacos.jdbc;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import java.sql.SQLException;
@@ -156,7 +157,8 @@ class ConcurrentSchemaDiscoveryTest {
       discovery = new ConcurrentSchemaDiscovery(mockClient, properties);
 
       // Setup mock to simulate a slow operation that will timeout
-      when(mockClient.describeTable(any(DescribeTableRequest.class)))
+      lenient()
+          .when(mockClient.describeTable(any(DescribeTableRequest.class)))
           .thenAnswer(
               invocation -> {
                 try {
