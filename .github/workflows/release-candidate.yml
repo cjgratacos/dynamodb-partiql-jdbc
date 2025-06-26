@@ -170,6 +170,9 @@ jobs:
         
         # Copy the POM file to target directory for JReleaser
         cp pom.xml target/dynamodb-partiql-1.0.0.pom
+        
+        # Create staging directory for JReleaser
+        mkdir -p target/staging-deploy
 
     - name: Generate checksums
       run: |

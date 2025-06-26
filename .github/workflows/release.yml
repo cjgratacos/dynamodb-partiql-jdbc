@@ -63,6 +63,9 @@ jobs:
           
           # Copy the POM file to target directory for JReleaser
           cp pom.xml target/dynamodb-partiql-${{ steps.version.outputs.version }}.pom
+          
+          # Create staging directory for JReleaser
+          mkdir -p target/staging-deploy
       
       - name: Run JReleaser
         env:
