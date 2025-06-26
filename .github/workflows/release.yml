@@ -101,9 +101,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Deploying to GitHub Packages..."
-          ./mvnw -B deploy -DskipTests \
-            -DaltDeploymentRepository=github::https://maven.pkg.github.com/cjgratacos/maven \
-            -s settings.xml
+          ./mvnw -B deploy -DskipTests -s settings.xml
+      
+      - name: Setup GPG for Maven Central
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          # List the imported key
+          gpg --list-secret-keys
       
       - name: Deploy to Maven Central
         env:
@@ -112,14 +116,18 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           echo "Deploying to Maven Central..."
-          # Import GPG key for signing
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
           
-          # Deploy to Maven Central
-          ./mvnw -B deploy -DskipTests \
-            -DaltDeploymentRepository=ossrh::https://oss.sonatype.org/service/local/staging/deploy/maven2/ \
+          # Deploy using the deploy plugin with explicit configuration
+          ./mvnw -B deploy:deploy-file \
+            -Durl=https://oss.sonatype.org/service/local/staging/deploy/maven2/ \
+            -DrepositoryId=ossrh \
+            -Dfile=target/dynamodb-partiql-${{ steps.version.outputs.version }}.jar \
+            -DpomFile=pom.xml \
+            -Dfiles=target/dynamodb-partiql-${{ steps.version.outputs.version }}-sources.jar,target/dynamodb-partiql-${{ steps.version.outputs.version }}-javadoc.jar \
+            -Dclassifiers=sources,javadoc \
+            -Dtypes=jar,jar \
             -Dgpg.passphrase="$GPG_PASSPHRASE" \
-            -P release
+            -s settings.xml
       
       - name: Upload JReleaser outputs
         if: always()
