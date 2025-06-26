@@ -167,6 +167,9 @@ jobs:
         
         # Also generate sources and javadoc JARs explicitly
         ./mvnw -B source:jar javadoc:jar -DskipTests
+        
+        # Copy the POM file to target directory for JReleaser
+        cp pom.xml target/dynamodb-partiql-1.0.0.pom
 
     - name: Generate checksums
       run: |

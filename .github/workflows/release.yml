@@ -52,6 +52,18 @@ jobs:
         run: |
           echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
       
+      - name: Build release artifacts
+        run: |
+          ./mvnw -B clean package -DskipTests \
+            -Dmaven.javadoc.skip=false \
+            -Dmaven.source.skip=false
+          
+          # Also generate sources and javadoc JARs explicitly
+          ./mvnw -B source:jar javadoc:jar -DskipTests
+          
+          # Copy the POM file to target directory for JReleaser
+          cp pom.xml target/dynamodb-partiql-${{ steps.version.outputs.version }}.pom
+      
       - name: Run JReleaser
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
