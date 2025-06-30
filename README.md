@@ -21,6 +21,7 @@ While the driver implements the necessary JDBC interfaces to support application
 - **GUI Client Support**: Designed for database visualization tools like DBeaver, DataGrip, DbVisualizer
 - **Index Query Support**: Automatic normalization of index queries from `"table.index"` to proper DynamoDB PartiQL syntax
 - **LIMIT/OFFSET Support**: Full support for SQL LIMIT and OFFSET clauses with client-side implementation
+- **Logical Foreign Keys**: Define table relationships for tool compatibility via connection properties
 - **Testcontainers Integration**: Full support for integration testing with DynamoDB Local
 - **Comprehensive Configuration**: Extensive configuration options for performance tuning
 - **Schema Discovery**: Automatic schema detection with multiple strategies
@@ -290,6 +291,239 @@ String pattern = PartiQLKeywords.SELECT_INDEX_PATTERN;
 String indexQuery = String.format(pattern, "*", "users", "email_index", "email = ?");
 ```
 
+### Logical Foreign Key Support
+
+Since DynamoDB doesn't support foreign keys natively, the driver allows you to define logical relationships between tables. This enables database tools to display and understand table relationships.
+
+#### Configuration Methods
+
+The driver supports three methods for defining foreign keys:
+
+##### Method 1: Inline in Connection URL
+
+```
+foreignKey.<constraint_name>=<foreign_table>.<foreign_column>-><primary_table>.<primary_column>
+```
+
+Example:
+```java
+String url = "jdbc:dynamodb:partiql:region=us-east-1;" +
+             "foreignKey.FK_Orders_Users=Orders.customerId->Users.userId;" +
+             "foreignKey.FK_OrderItems_Orders=OrderItems.orderId->Orders.orderId";
+
+Connection conn = DriverManager.getConnection(url);
+```
+
+##### Method 2: Properties File
+
+Specify a properties file containing foreign key definitions:
+
+```java
+String url = "jdbc:dynamodb:partiql:region=us-east-1;" +
+             "foreignKeysFile=/path/to/foreign-keys.properties";
+```
+
+Properties file format (`foreign-keys.properties`):
+```properties
+# Simple format
+foreignKey.FK_Orders_Users=Orders.customerId->Users.userId
+foreignKey.FK_OrderItems_Orders=OrderItems.orderId->Orders.orderId
+
+# Detailed format with additional properties
+fk.1.name=FK_Orders_Users
+fk.1.foreign.table=Orders
+fk.1.foreign.column=customerId
+fk.1.primary.table=Users
+fk.1.primary.column=userId
+fk.1.updateRule=CASCADE
+fk.1.deleteRule=RESTRICT
+```
+
+##### Method 3: DynamoDB Table
+
+Store foreign key definitions in a DynamoDB table:
+
+```java
+String url = "jdbc:dynamodb:partiql:region=us-east-1;" +
+             "foreignKeysTable=MyAppForeignKeys";
+```
+
+Expected DynamoDB table schema:
+```json
+{
+  "constraintName": "FK_Orders_Users",  // Primary key
+  "foreignTable": "Orders",
+  "foreignColumn": "customerId",
+  "primaryTable": "Users",
+  "primaryColumn": "userId",
+  "updateRule": "CASCADE",    // Optional
+  "deleteRule": "RESTRICT"    // Optional
+}
+```
+
+Create the table using PartiQL:
+```sql
+CREATE TABLE MyAppForeignKeys (
+  constraintName STRING,
+  foreignTable STRING,
+  foreignColumn STRING,
+  primaryTable STRING,
+  primaryColumn STRING,
+  updateRule STRING,
+  deleteRule STRING
+)
+```
+
+##### Combining Methods
+
+You can combine multiple methods - foreign keys from all sources will be merged:
+
+```java
+String url = "jdbc:dynamodb:partiql:region=us-east-1;" +
+             "foreignKeysFile=/path/to/foreign-keys.properties;" +
+             "foreignKeysTable=MyAppForeignKeys;" +
+             "foreignKey.FK_Additional=Table1.col1->Table2.col2";
+```
+
+#### Using Foreign Key Metadata
+
+Once defined, foreign keys are accessible through standard JDBC DatabaseMetaData methods:
+
+```java
+DatabaseMetaData meta = conn.getMetaData();
+
+// Get foreign keys imported by Orders table
+ResultSet imported = meta.getImportedKeys(null, null, "Orders");
+while (imported.next()) {
+    System.out.println("Orders." + imported.getString("FKCOLUMN_NAME") + 
+                      " references " + 
+                      imported.getString("PKTABLE_NAME") + "." + 
+                      imported.getString("PKCOLUMN_NAME"));
+}
+
+// Get foreign keys exported by Users table
+ResultSet exported = meta.getExportedKeys(null, null, "Users");
+while (exported.next()) {
+    System.out.println(exported.getString("FKTABLE_NAME") + "." + 
+                      exported.getString("FKCOLUMN_NAME") + 
+                      " references Users." + 
+                      exported.getString("PKCOLUMN_NAME"));
+}
+
+// Get cross-reference between specific tables
+ResultSet crossRef = meta.getCrossReference(null, null, "Users", 
+                                          null, null, "Orders");
+```
+
+#### Benefits
+
+- **Tool Compatibility**: Database visualization tools like DbVisualizer can display relationship diagrams
+- **Documentation**: Relationships are documented in connection configuration
+- **No DynamoDB Changes**: Purely client-side metadata, no changes to your DynamoDB tables
+- **Standard JDBC**: Uses standard JDBC methods that tools already understand
+
+### Foreign Key Validation
+
+The driver includes comprehensive validation support to ensure foreign key definitions reference actual existing tables and columns in DynamoDB.
+
+#### Validation Configuration
+
+Control validation behavior using connection properties:
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `validateForeignKeys` | `false` | Enable/disable foreign key validation |
+| `foreignKeyValidationMode` | `lenient` | Validation mode: `strict`, `lenient`, or `off` |
+| `cacheTableMetadata` | `true` | Cache table/column existence checks for performance |
+
+#### Validation Modes
+
+##### Strict Mode
+In strict mode, the connection will fail if any foreign key definition is invalid:
+```java
+String url = "jdbc:dynamodb:partiql:region=us-east-1;" +
+             "validateForeignKeys=true;" +
+             "foreignKeyValidationMode=strict;" +
+             "foreignKey.FK1=Orders.customerId->NonExistentTable.id";
+
+// This will throw SQLException due to invalid foreign key
+Connection conn = DriverManager.getConnection(url);
+```
+
+##### Lenient Mode (Default)
+In lenient mode, invalid foreign keys are logged as warnings but don't prevent connection:
+```java
+String url = "jdbc:dynamodb:partiql:region=us-east-1;" +
+             "validateForeignKeys=true;" +
+             "foreignKeyValidationMode=lenient;" +
+             "foreignKey.FK1=Orders.customerId->Users.userId;" +
+             "foreignKey.FK2=Orders.sellerId->NonExistentTable.id";
+
+// Connection succeeds, FK2 logged as warning
+Connection conn = DriverManager.getConnection(url);
+```
+
+##### Off Mode
+Validation is completely disabled (same as `validateForeignKeys=false`).
+
+#### Validation Checks
+
+When validation is enabled, the driver performs the following checks:
+
+1. **Table Existence**: Verifies both primary and foreign tables exist
+2. **Column Existence**: Verifies referenced columns exist in their respective tables
+3. **Constraint Name**: Ensures constraint names are not empty
+4. **Duplicate Names**: Detects duplicate constraint names
+5. **Circular References**: Warns about circular foreign key relationships
+
+#### Performance Considerations
+
+- **Caching**: Table and column existence checks are cached (15-minute default)
+- **Lazy Loading**: Validation occurs during connection initialization
+- **Batch Validation**: Multiple foreign keys are validated together for efficiency
+
+#### Example with All Features
+
+```java
+// Create properties file with foreign keys
+// foreign-keys.properties:
+// foreignKey.FK1=Orders.customerId->Users.userId
+// foreignKey.FK2=OrderItems.orderId->Orders.orderId
+
+Properties props = new Properties();
+props.setProperty("region", "us-east-1");
+props.setProperty("validateForeignKeys", "true");
+props.setProperty("foreignKeyValidationMode", "strict");
+props.setProperty("cacheTableMetadata", "true");
+props.setProperty("foreignKeysFile", "/path/to/foreign-keys.properties");
+
+String url = "jdbc:dynamodb:partiql:" + toPropertiesString(props);
+
+try (Connection conn = DriverManager.getConnection(url)) {
+    DatabaseMetaData meta = conn.getMetaData();
+    
+    // Only valid foreign keys are available
+    ResultSet rs = meta.getImportedKeys(null, null, "Orders");
+    while (rs.next()) {
+        // All foreign keys have been validated
+        System.out.println("Valid FK: " + rs.getString("FK_NAME"));
+    }
+} catch (SQLException e) {
+    // In strict mode, connection fails if validation errors occur
+    System.err.println("Connection failed: " + e.getMessage());
+}
+```
+
+#### Validation API Access
+
+For advanced use cases, you can access validation information programmatically:
+
+```java
+DynamoDbDatabaseMetaData meta = (DynamoDbDatabaseMetaData) conn.getMetaData();
+// Note: This requires casting to the implementation class and accessing
+// internal validation state - not recommended for production use
+```
+
 ### GUI Client Configuration
 
 **Important:** Use the `*-with-dependencies.jar` file for GUI clients to avoid dependency issues.
@@ -394,6 +628,8 @@ jdbc:dynamodb:partiql:region=us-east-1;credentialsType=PROFILE;profileName=mypro
 | `defaultFetchSize` | 100 | Default number of rows to fetch per page |
 | `defaultMaxRows` | - | Default maximum rows limit for all queries |
 | `offsetWarningThreshold` | 1000 | Threshold for large OFFSET warnings |
+| `foreignKeysFile` | - | Path to properties file containing foreign key definitions |
+| `foreignKeysTable` | - | DynamoDB table name containing foreign key definitions |
 
 #### Schema Discovery
 

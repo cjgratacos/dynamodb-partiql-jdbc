@@ -115,6 +115,15 @@ public class DynamoDbTestContainer {
   }
 
   /**
+   * Gets the DynamoDB client for direct API access.
+   *
+   * @return the DynamoDB client
+   */
+  public DynamoDbClient getDynamoDbClient() {
+    return client;
+  }
+
+  /**
    * Creates test tables with specified names.
    *
    * @param tableNames the names of tables to create

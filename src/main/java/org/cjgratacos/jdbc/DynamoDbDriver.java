@@ -43,6 +43,14 @@ import java.util.logging.Logger;
  *       CACHED_ONLY, PREDICTIVE). Defaults to IMMEDIATE.
  *   <li><strong>preloadStrategy</strong>: Schema preloading strategy (STARTUP, PATTERN_BASED,
  *       SCHEDULED, REACTIVE, NONE). Defaults to PATTERN_BASED.
+ *   <li><strong>foreignKeysFile</strong>: Path to properties file containing foreign key
+ *       definitions.
+ *   <li><strong>foreignKeysTable</strong>: DynamoDB table name containing foreign key definitions.
+ *   <li><strong>validateForeignKeys</strong>: Enable/disable foreign key validation. Defaults to
+ *       false.
+ *   <li><strong>foreignKeyValidationMode</strong>: Validation mode (strict, lenient, off). Defaults
+ *       to lenient.
+ *   <li><strong>cacheTableMetadata</strong>: Cache table/column existence checks. Defaults to true.
  * </ul>
  *
  * <p>For a complete list of supported properties, call {@link #getPropertyInfo(String,
@@ -88,6 +96,13 @@ import java.util.logging.Logger;
  *     "schemaOptimizations=true;lazyLoadingStrategy=PREDICTIVE;" +
  *     "preloadStrategy=STARTUP;preloadStartupTables=users,orders,products;";
  * Connection optimizedConnection = DriverManager.getConnection(optimizedUrl);
+ *
+ * // Configuration with foreign keys and validation
+ * String fkUrl = "jdbc:dynamodb:partiql:region=us-east-1;" +
+ *     "foreignKey.FK_Orders_Users=Orders.customerId->Users.userId;" +
+ *     "foreignKey.FK_OrderItems_Orders=OrderItems.orderId->Orders.orderId;" +
+ *     "validateForeignKeys=true;foreignKeyValidationMode=strict;";
+ * Connection fkConnection = DriverManager.getConnection(fkUrl);
  * }</pre>
  *
  * @author CJ Gratacos
@@ -181,8 +196,9 @@ public class DynamoDbDriver implements Driver {
       existingProps.putAll(info);
     }
 
-    // Define all supported properties (basic + schema discovery + performance optimizations)
-    DriverPropertyInfo[] properties = new DriverPropertyInfo[32];
+    // Define all supported properties (basic + schema discovery + performance optimizations +
+    // foreign keys)
+    DriverPropertyInfo[] properties = new DriverPropertyInfo[38];
 
     // Required property: region
     properties[0] = new DriverPropertyInfo("region", existingProps.getProperty("region"));
@@ -408,6 +424,52 @@ public class DynamoDbDriver implements Driver {
     properties[31].required = false;
     properties[31].description =
         "Interval for background cache warming in milliseconds (default: 3600000 = 1 hour).";
+
+    // Foreign Key Properties
+    properties[32] =
+        new DriverPropertyInfo("foreignKeysFile", existingProps.getProperty("foreignKeysFile"));
+    properties[32].required = false;
+    properties[32].description =
+        "Path to properties file containing foreign key definitions (optional).";
+
+    properties[33] =
+        new DriverPropertyInfo("foreignKeysTable", existingProps.getProperty("foreignKeysTable"));
+    properties[33].required = false;
+    properties[33].description =
+        "DynamoDB table name containing foreign key definitions (optional).";
+
+    // Foreign Key Validation Properties
+    properties[34] =
+        new DriverPropertyInfo(
+            "validateForeignKeys", existingProps.getProperty("validateForeignKeys", "false"));
+    properties[34].required = false;
+    properties[34].description = "Enable/disable foreign key validation (default: false).";
+    properties[34].choices = new String[] {"true", "false"};
+
+    properties[35] =
+        new DriverPropertyInfo(
+            "foreignKeyValidationMode",
+            existingProps.getProperty("foreignKeyValidationMode", "lenient"));
+    properties[35].required = false;
+    properties[35].description =
+        "Foreign key validation mode (default: lenient). "
+            + "strict: fail on invalid foreign keys, lenient: log warnings, off: no validation.";
+    properties[35].choices = new String[] {"strict", "lenient", "off"};
+
+    properties[36] =
+        new DriverPropertyInfo(
+            "cacheTableMetadata", existingProps.getProperty("cacheTableMetadata", "true"));
+    properties[36].required = false;
+    properties[36].description =
+        "Cache table/column existence checks for foreign key validation (default: true).";
+    properties[36].choices = new String[] {"true", "false"};
+
+    // Default fetch size and max rows properties
+    properties[37] =
+        new DriverPropertyInfo(
+            "defaultFetchSize", existingProps.getProperty("defaultFetchSize", "100"));
+    properties[37].required = false;
+    properties[37].description = "Default number of rows to fetch per page (default: 100).";
 
     return properties;
   }

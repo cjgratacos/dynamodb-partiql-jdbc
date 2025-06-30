@@ -11,6 +11,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import org.cjgratacos.jdbc.metadata.ForeignKeyMetadata;
+import org.cjgratacos.jdbc.metadata.ForeignKeyParser;
+import org.cjgratacos.jdbc.metadata.ForeignKeyRegistry;
+import org.cjgratacos.jdbc.metadata.ForeignKeyValidationException;
+import org.cjgratacos.jdbc.metadata.ForeignKeyValidator;
+import org.cjgratacos.jdbc.metadata.TableValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -35,6 +41,7 @@ public class DynamoDbDatabaseMetaData implements DatabaseMetaData {
   private final Properties connectionProperties;
   private final SchemaCache schemaCache;
   private final EnhancedSchemaDetector enhancedSchemaDetector;
+  private final ForeignKeyRegistry foreignKeyRegistry;
 
   /**
    * Creates a new DatabaseMetaData instance for the given connection.
@@ -42,16 +49,57 @@ public class DynamoDbDatabaseMetaData implements DatabaseMetaData {
    * @param connection the DynamoDB connection
    * @param connectionProperties the connection properties from the JDBC URL
    * @param schemaCache the schema cache for enhanced column type detection
+   * @throws SQLException if foreign key validation fails in strict mode
    */
   public DynamoDbDatabaseMetaData(
       final DynamoDbConnection connection,
       final Properties connectionProperties,
-      final SchemaCache schemaCache) {
+      final SchemaCache schemaCache)
+      throws SQLException {
     this.connection = connection;
     this.connectionProperties = connectionProperties;
     this.schemaCache = schemaCache;
     this.enhancedSchemaDetector =
         new EnhancedSchemaDetector(connection.getDynamoDbClient(), connectionProperties);
+
+    // Initialize foreign key support with validation configuration
+    boolean validateForeignKeys =
+        Boolean.parseBoolean(connectionProperties.getProperty("validateForeignKeys", "false"));
+    String validationMode = connectionProperties.getProperty("foreignKeyValidationMode", "lenient");
+    boolean cacheTableMetadata =
+        Boolean.parseBoolean(connectionProperties.getProperty("cacheTableMetadata", "true"));
+
+    // Create validator if validation is enabled
+    ForeignKeyValidator validator = null;
+    if (validateForeignKeys) {
+      TableValidator tableValidator =
+          new TableValidator(connection.getDynamoDbClient(), cacheTableMetadata, 15);
+      validator = new ForeignKeyValidator(tableValidator);
+    }
+
+    // Initialize registry with validation settings
+    boolean strictMode = "strict".equalsIgnoreCase(validationMode);
+    this.foreignKeyRegistry = new ForeignKeyRegistry(validateForeignKeys && strictMode, validator);
+
+    // Parse foreign keys with validation if enabled
+    ForeignKeyParser parser =
+        new ForeignKeyParser(connection.getDynamoDbClient(), validateForeignKeys && !strictMode);
+    List<ForeignKeyMetadata> foreignKeys = parser.parseFromProperties(connectionProperties);
+
+    // Register foreign keys
+    for (ForeignKeyMetadata fk : foreignKeys) {
+      try {
+        this.foreignKeyRegistry.registerForeignKey(fk);
+      } catch (ForeignKeyValidationException e) {
+        if (strictMode) {
+          throw new SQLException("Failed to register foreign key: " + fk.getConstraintName(), e);
+        } else {
+          // In lenient mode, log and continue
+          logger.warn(
+              "Foreign key validation failed for '{}': {}", fk.getConstraintName(), e.getMessage());
+        }
+      }
+    }
   }
 
   // Basic database information methods
@@ -1413,15 +1461,131 @@ public class DynamoDbDatabaseMetaData implements DatabaseMetaData {
   @Override
   public ResultSet getImportedKeys(final String catalog, final String schema, final String table)
       throws SQLException {
-    // Return empty result set - DynamoDB doesn't support foreign keys
-    return new DynamoDbResultSet(new ArrayList<>());
+    // Get logical foreign keys for the specified table
+    List<ForeignKeyMetadata> importedKeys = foreignKeyRegistry.getImportedKeys(table);
+    List<Map<String, AttributeValue>> rows = new ArrayList<>();
+
+    for (ForeignKeyMetadata fk : importedKeys) {
+      Map<String, AttributeValue> row = new LinkedHashMap<>();
+
+      // Primary (referenced) table information
+      row.put(
+          "PKTABLE_CAT",
+          fk.getPrimaryCatalog() != null
+              ? AttributeValue.builder().s(fk.getPrimaryCatalog()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put(
+          "PKTABLE_SCHEM",
+          fk.getPrimarySchema() != null
+              ? AttributeValue.builder().s(fk.getPrimarySchema()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put("PKTABLE_NAME", AttributeValue.builder().s(fk.getPrimaryTable()).build());
+      row.put("PKCOLUMN_NAME", AttributeValue.builder().s(fk.getPrimaryColumn()).build());
+
+      // Foreign (referencing) table information
+      row.put(
+          "FKTABLE_CAT",
+          fk.getForeignCatalog() != null
+              ? AttributeValue.builder().s(fk.getForeignCatalog()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put(
+          "FKTABLE_SCHEM",
+          fk.getForeignSchema() != null
+              ? AttributeValue.builder().s(fk.getForeignSchema()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put("FKTABLE_NAME", AttributeValue.builder().s(fk.getForeignTable()).build());
+      row.put("FKCOLUMN_NAME", AttributeValue.builder().s(fk.getForeignColumn()).build());
+
+      // Key sequence and rules
+      row.put("KEY_SEQ", AttributeValue.builder().n(String.valueOf(fk.getKeySeq())).build());
+      row.put(
+          "UPDATE_RULE", AttributeValue.builder().n(String.valueOf(fk.getUpdateRule())).build());
+      row.put(
+          "DELETE_RULE", AttributeValue.builder().n(String.valueOf(fk.getDeleteRule())).build());
+
+      // Constraint names
+      row.put(
+          "FK_NAME",
+          fk.getConstraintName() != null
+              ? AttributeValue.builder().s(fk.getConstraintName()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put(
+          "PK_NAME", AttributeValue.builder().nul(true).build()); // DynamoDB doesn't have named PKs
+
+      // Deferrability
+      row.put(
+          "DEFERRABILITY",
+          AttributeValue.builder().n(String.valueOf(fk.getDeferrability())).build());
+
+      rows.add(row);
+    }
+
+    return new DynamoDbResultSet(rows);
   }
 
   @Override
   public ResultSet getExportedKeys(final String catalog, final String schema, final String table)
       throws SQLException {
-    // Return empty result set - DynamoDB doesn't support foreign keys
-    return new DynamoDbResultSet(new ArrayList<>());
+    // Get logical foreign keys exported by the specified table
+    List<ForeignKeyMetadata> exportedKeys = foreignKeyRegistry.getExportedKeys(table);
+    List<Map<String, AttributeValue>> rows = new ArrayList<>();
+
+    for (ForeignKeyMetadata fk : exportedKeys) {
+      Map<String, AttributeValue> row = new LinkedHashMap<>();
+
+      // Primary (referenced) table information - this is the table parameter
+      row.put(
+          "PKTABLE_CAT",
+          fk.getPrimaryCatalog() != null
+              ? AttributeValue.builder().s(fk.getPrimaryCatalog()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put(
+          "PKTABLE_SCHEM",
+          fk.getPrimarySchema() != null
+              ? AttributeValue.builder().s(fk.getPrimarySchema()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put("PKTABLE_NAME", AttributeValue.builder().s(fk.getPrimaryTable()).build());
+      row.put("PKCOLUMN_NAME", AttributeValue.builder().s(fk.getPrimaryColumn()).build());
+
+      // Foreign (referencing) table information
+      row.put(
+          "FKTABLE_CAT",
+          fk.getForeignCatalog() != null
+              ? AttributeValue.builder().s(fk.getForeignCatalog()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put(
+          "FKTABLE_SCHEM",
+          fk.getForeignSchema() != null
+              ? AttributeValue.builder().s(fk.getForeignSchema()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put("FKTABLE_NAME", AttributeValue.builder().s(fk.getForeignTable()).build());
+      row.put("FKCOLUMN_NAME", AttributeValue.builder().s(fk.getForeignColumn()).build());
+
+      // Key sequence and rules
+      row.put("KEY_SEQ", AttributeValue.builder().n(String.valueOf(fk.getKeySeq())).build());
+      row.put(
+          "UPDATE_RULE", AttributeValue.builder().n(String.valueOf(fk.getUpdateRule())).build());
+      row.put(
+          "DELETE_RULE", AttributeValue.builder().n(String.valueOf(fk.getDeleteRule())).build());
+
+      // Constraint names
+      row.put(
+          "FK_NAME",
+          fk.getConstraintName() != null
+              ? AttributeValue.builder().s(fk.getConstraintName()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put(
+          "PK_NAME", AttributeValue.builder().nul(true).build()); // DynamoDB doesn't have named PKs
+
+      // Deferrability
+      row.put(
+          "DEFERRABILITY",
+          AttributeValue.builder().n(String.valueOf(fk.getDeferrability())).build());
+
+      rows.add(row);
+    }
+
+    return new DynamoDbResultSet(rows);
   }
 
   @Override
@@ -1433,8 +1597,67 @@ public class DynamoDbDatabaseMetaData implements DatabaseMetaData {
       final String foreignSchema,
       final String foreignTable)
       throws SQLException {
-    // Return empty result set - DynamoDB doesn't support foreign keys
-    return new DynamoDbResultSet(new ArrayList<>());
+    // Get logical foreign keys between the two specified tables
+    List<ForeignKeyMetadata> crossRefs =
+        foreignKeyRegistry.getCrossReference(parentTable, foreignTable);
+    List<Map<String, AttributeValue>> rows = new ArrayList<>();
+
+    for (ForeignKeyMetadata fk : crossRefs) {
+      Map<String, AttributeValue> row = new LinkedHashMap<>();
+
+      // Primary (parent) table information
+      row.put(
+          "PKTABLE_CAT",
+          fk.getPrimaryCatalog() != null
+              ? AttributeValue.builder().s(fk.getPrimaryCatalog()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put(
+          "PKTABLE_SCHEM",
+          fk.getPrimarySchema() != null
+              ? AttributeValue.builder().s(fk.getPrimarySchema()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put("PKTABLE_NAME", AttributeValue.builder().s(fk.getPrimaryTable()).build());
+      row.put("PKCOLUMN_NAME", AttributeValue.builder().s(fk.getPrimaryColumn()).build());
+
+      // Foreign table information
+      row.put(
+          "FKTABLE_CAT",
+          fk.getForeignCatalog() != null
+              ? AttributeValue.builder().s(fk.getForeignCatalog()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put(
+          "FKTABLE_SCHEM",
+          fk.getForeignSchema() != null
+              ? AttributeValue.builder().s(fk.getForeignSchema()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put("FKTABLE_NAME", AttributeValue.builder().s(fk.getForeignTable()).build());
+      row.put("FKCOLUMN_NAME", AttributeValue.builder().s(fk.getForeignColumn()).build());
+
+      // Key sequence and rules
+      row.put("KEY_SEQ", AttributeValue.builder().n(String.valueOf(fk.getKeySeq())).build());
+      row.put(
+          "UPDATE_RULE", AttributeValue.builder().n(String.valueOf(fk.getUpdateRule())).build());
+      row.put(
+          "DELETE_RULE", AttributeValue.builder().n(String.valueOf(fk.getDeleteRule())).build());
+
+      // Constraint names
+      row.put(
+          "FK_NAME",
+          fk.getConstraintName() != null
+              ? AttributeValue.builder().s(fk.getConstraintName()).build()
+              : AttributeValue.builder().nul(true).build());
+      row.put(
+          "PK_NAME", AttributeValue.builder().nul(true).build()); // DynamoDB doesn't have named PKs
+
+      // Deferrability
+      row.put(
+          "DEFERRABILITY",
+          AttributeValue.builder().n(String.valueOf(fk.getDeferrability())).build());
+
+      rows.add(row);
+    }
+
+    return new DynamoDbResultSet(rows);
   }
 
   /**
