@@ -28,6 +28,7 @@ While the driver implements the necessary JDBC interfaces to support application
 - **Information Schema Support**: Full support for information_schema queries including tables, columns, and index metadata
 - **Enhanced Metadata**: Comprehensive TYPE_NAME fields for primary keys and index columns, KEY_NAME support, and information_schema integration
 - **Performance Optimization**: Built-in caching, lazy loading, and concurrent operations
+- **Connection Pooling**: Built-in connection pool with configurable sizing and validation
 - **Observability**: Query metrics, retry handling, and correlation tracing
 
 ## 📦 Installation
@@ -589,6 +590,82 @@ If you encounter `ClassNotFoundException: org.slf4j.LoggerFactory` or similar de
 1. **Always use the fat JAR**: Download `dynamodb-partiql-*-with-dependencies.jar`
 2. **Remove regular JAR**: Don't mix regular and fat JARs in the same client
 3. **Clear driver cache**: Some clients cache drivers; restart the client after changing JARs
+
+### Connection Pooling
+
+The driver includes built-in connection pooling for efficient connection reuse in applications:
+
+#### Basic Usage
+
+```java
+import org.cjgratacos.jdbc.pool.DynamoDbConnectionPoolDataSource;
+
+// Create pooled data source
+DynamoDbConnectionPoolDataSource dataSource = new DynamoDbConnectionPoolDataSource();
+dataSource.setJdbcUrl("jdbc:dynamodb:partiql:region=us-east-1");
+dataSource.setMinPoolSize(5);
+dataSource.setMaxPoolSize(20);
+dataSource.setInitialPoolSize(10);
+
+// Use connections from pool
+try (Connection conn = dataSource.getConnection()) {
+    // Connection automatically returned to pool on close
+    try (Statement stmt = conn.createStatement()) {
+        ResultSet rs = stmt.executeQuery("SELECT * FROM MyTable");
+        // Process results
+    }
+}
+
+// Close pool when done
+dataSource.close();
+```
+
+#### Pool Configuration Properties
+
+Configure the pool via connection properties:
+
+| Property | Description | Default |
+|----------|-------------|---------|
+| `pool.minSize` | Minimum pool size | 5 |
+| `pool.maxSize` | Maximum pool size | 20 |
+| `pool.initialSize` | Initial pool size | 5 |
+| `pool.connectionTimeout` | Connection creation timeout (seconds) | 30 |
+| `pool.idleTimeout` | Idle connection timeout (seconds) | 600 |
+| `pool.maxLifetime` | Maximum connection lifetime (seconds) | 1800 |
+| `pool.testOnBorrow` | Validate connection before use | true |
+| `pool.testOnReturn` | Validate connection on return | false |
+| `pool.testWhileIdle` | Validate idle connections | true |
+| `pool.blockWhenExhausted` | Block when pool exhausted | true |
+| `pool.maxWaitTime` | Max wait for connection (seconds) | 30 |
+
+#### Using with Connection URL
+
+```java
+String url = "jdbc:dynamodb:partiql:region=us-east-1;" +
+             "pool.minSize=10;pool.maxSize=50;pool.testOnBorrow=true";
+
+DynamoDbConnectionPoolDataSource dataSource = new DynamoDbConnectionPoolDataSource(url);
+```
+
+#### Pool Monitoring
+
+```java
+// Get pool statistics
+DynamoDbConnectionPoolDataSource.PoolStatistics stats = dataSource.getPoolStatistics();
+System.out.println("Active connections: " + stats.getActiveConnections());
+System.out.println("Idle connections: " + stats.getIdleConnections());
+System.out.println("Total connections: " + stats.getTotalConnections());
+System.out.println("Connections created: " + stats.getConnectionsCreated());
+System.out.println("Wait timeouts: " + stats.getWaitTimeouts());
+```
+
+#### Best Practices
+
+1. **Reuse DataSource**: Create one DataSource instance and share it across your application
+2. **Always close connections**: Use try-with-resources to ensure connections return to pool
+3. **Monitor pool metrics**: Track active connections and wait timeouts
+4. **Size appropriately**: Set max pool size based on DynamoDB throttling limits
+5. **Configure timeouts**: Set reasonable timeouts to prevent connection leaks
 
 ## ⚙️ Configuration Options
 
