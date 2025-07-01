@@ -33,12 +33,25 @@ import software.amazon.awssdk.services.dynamodb.model.ExecuteStatementResponse;
  * <h2>Supported PartiQL Operations:</h2>
  *
  * <ul>
- *   <li><strong>SELECT</strong>: Query operations that return data
- *   <li><strong>INSERT</strong>: Insert new items into a table
- *   <li><strong>UPDATE</strong>: Modify existing items in a table
- *   <li><strong>DELETE</strong>: Remove items from a table
+ *   <li><strong>SELECT</strong>: Query operations that return data with LIMIT/OFFSET support
+ *   <li><strong>INSERT</strong>: Insert new items into a table using VALUE or VALUES
+ *   <li><strong>UPDATE</strong>: Modify existing items in a table with WHERE conditions
+ *   <li><strong>DELETE</strong>: Remove items from a table with WHERE conditions
  *   <li><strong>UPSERT</strong>: Insert or update items (DynamoDB-specific)
  *   <li><strong>REPLACE</strong>: Replace existing items (DynamoDB-specific)
+ * </ul>
+ *
+ * <h2>Key Features:</h2>
+ *
+ * <ul>
+ *   <li>Automatic LIMIT/OFFSET handling with client-side implementation
+ *   <li>Transaction support when autoCommit is disabled
+ *   <li>Batch operations via addBatch/executeBatch
+ *   <li>Automatic retry with exponential backoff
+ *   <li>Query metrics collection and reporting
+ *   <li>Index query normalization (table.index to table"."index)
+ *   <li>Information schema support for metadata queries
+ *   <li>Updatable ResultSet support for simple queries
  * </ul>
  *
  * <h2>Statement Types:</h2>
@@ -47,7 +60,24 @@ import software.amazon.awssdk.services.dynamodb.model.ExecuteStatementResponse;
  *   <li>{@link #executeQuery(String)} - For SELECT statements that return ResultSet
  *   <li>{@link #executeUpdate(String)} - For DML statements (INSERT, UPDATE, DELETE, etc.)
  *   <li>{@link #execute(String)} - Generic execution method that returns boolean
+ *   <li>{@link #executeBatch()} - Execute batch operations atomically
  * </ul>
+ *
+ * <h2>Example Usage:</h2>
+ * <pre>{@code
+ * Statement stmt = connection.createStatement();
+ * 
+ * // Query with LIMIT and OFFSET
+ * ResultSet rs = stmt.executeQuery("SELECT * FROM Users LIMIT 10 OFFSET 20");
+ * 
+ * // Update with retry handling
+ * int updated = stmt.executeUpdate("UPDATE Users SET status = 'active' WHERE userId = 'user123'");
+ * 
+ * // Batch operations
+ * stmt.addBatch("INSERT INTO Users VALUE {'userId': 'user1', 'name': 'Alice'}");
+ * stmt.addBatch("INSERT INTO Users VALUE {'userId': 'user2', 'name': 'Bob'}");
+ * int[] results = stmt.executeBatch();
+ * }</pre>
  *
  * <h2>Features:</h2>
  *

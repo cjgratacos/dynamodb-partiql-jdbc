@@ -29,6 +29,36 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
  * supported features, data types, and database structure. Since DynamoDB is a NoSQL database, many
  * traditional SQL metadata concepts are not applicable or have limited support.
  *
+ * <h2>Key Features:</h2>
+ * <ul>
+ *   <li>Table and column metadata discovery
+ *   <li>Primary key and index information
+ *   <li>Type information for DynamoDB data types
+ *   <li>Logical foreign key support (user-defined)
+ *   <li>Information schema queries support
+ *   <li>Schema caching for performance
+ * </ul>
+ *
+ * <h2>DynamoDB-Specific Behavior:</h2>
+ * <ul>
+ *   <li>No stored procedures (except Lambda integration)
+ *   <li>No transactions in traditional SQL sense (uses TransactWriteItems)
+ *   <li>No referential integrity constraints
+ *   <li>Limited SQL grammar support (PartiQL subset)
+ *   <li>Schema-less tables with dynamic attributes
+ * </ul>
+ *
+ * <h2>Supported Metadata Methods:</h2>
+ * <ul>
+ *   <li>{@link #getTables} - List all DynamoDB tables
+ *   <li>{@link #getColumns} - Get column information from table schema
+ *   <li>{@link #getPrimaryKeys} - Get primary key information
+ *   <li>{@link #getIndexInfo} - Get secondary index information
+ *   <li>{@link #getTypeInfo} - Get supported data types
+ *   <li>{@link #getImportedKeys} - Get logical foreign keys (user-defined)
+ *   <li>{@link #getExportedKeys} - Get reverse foreign key relationships
+ * </ul>
+ *
  * @author CJ Gratacos
  * @version 1.0
  * @since 1.0
@@ -2009,8 +2039,52 @@ public class DynamoDbDatabaseMetaData implements DatabaseMetaData {
   public ResultSet getProcedures(
       final String catalog, final String schemaPattern, final String procedureNamePattern)
       throws SQLException {
-    // Return empty result set - DynamoDB doesn't support stored procedures
-    return new DynamoDbResultSet(new ArrayList<>());
+    // Check if Lambda support is enabled
+    var lambdaEnabled = org.cjgratacos.jdbc.lambda.LambdaConnectionConfig.isLambdaEnabled(connectionProperties);
+    if (!lambdaEnabled) {
+      // Return empty result set - DynamoDB doesn't support stored procedures
+      return new DynamoDbResultSet(new ArrayList<>());
+    }
+    
+    // Return Lambda functions as stored procedures
+    List<Map<String, AttributeValue>> rows = new ArrayList<>();
+    
+    // Get allowed functions from configuration
+    String allowedFunctions = connectionProperties.getProperty("lambda.allowedFunctions");
+    if (allowedFunctions != null && !allowedFunctions.trim().isEmpty()) {
+      String[] functions = allowedFunctions.split(",");
+      for (String functionName : functions) {
+        functionName = functionName.trim();
+        
+        // Apply pattern matching if provided
+        if (procedureNamePattern != null && !functionName.matches(procedureNamePattern.replace("%", ".*").replace("_", "."))) {
+          continue;
+        }
+        
+        Map<String, AttributeValue> row = new LinkedHashMap<>();
+        row.put("PROCEDURE_CAT", AttributeValue.builder().nul(true).build());
+        row.put("PROCEDURE_SCHEM", AttributeValue.builder().nul(true).build());
+        row.put("PROCEDURE_NAME", AttributeValue.builder().s("lambda:" + functionName).build());
+        row.put("reserved1", AttributeValue.builder().nul(true).build());
+        row.put("reserved2", AttributeValue.builder().nul(true).build());
+        row.put("reserved3", AttributeValue.builder().nul(true).build());
+        row.put("REMARKS", AttributeValue.builder().s("AWS Lambda function").build());
+        row.put("PROCEDURE_TYPE", AttributeValue.builder().n(String.valueOf(DatabaseMetaData.procedureReturnsResult)).build());
+        row.put("SPECIFIC_NAME", AttributeValue.builder().s("lambda:" + functionName).build());
+        
+        rows.add(row);
+      }
+    }
+    
+    return new DynamoDbResultSet(
+        connection.getDynamoDbClient(),
+        "SELECT * FROM lambda_procedures",
+        software.amazon.awssdk.services.dynamodb.model.ExecuteStatementResponse.builder().items(rows).build(),
+        100,
+        null,
+        null,
+        0,
+        null);
   }
 
   @Override

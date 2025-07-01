@@ -46,8 +46,13 @@ import software.amazon.awssdk.services.dynamodb.model.ListTablesRequest;
  * <ul>
  *   <li>Automatic AWS DynamoDB client configuration
  *   <li>Support for custom endpoints (useful for DynamoDB Local)
- *   <li>Multiple credential provider types (DEFAULT, STATIC, PROFILE)
- *   <li>Forward-only, read-only result sets
+ *   <li>Multiple credential provider types (DEFAULT, STATIC, PROFILE, ASSUME_ROLE)
+ *   <li>Connection pooling support
+ *   <li>Transaction support via DynamoDB TransactWriteItems
+ *   <li>Lambda integration for stored procedures
+ *   <li>Comprehensive query metrics and retry handling
+ *   <li>Schema caching and discovery
+ *   <li>Foreign key metadata support
  *   <li>Transaction isolation level: TRANSACTION_NONE (DynamoDB is NoSQL)
  *   <li>Configurable default fetch size and max rows for all statements
  * </ul>
@@ -99,6 +104,8 @@ public class DynamoDbConnection implements Connection {
   private final SchemaCache schemaCache;
   private final OffsetTokenCache offsetTokenCache;
   private final TransactionManager transactionManager;
+  private software.amazon.awssdk.services.lambda.LambdaClient lambdaClient;
+  private org.cjgratacos.jdbc.lambda.LambdaConnectionConfig lambdaConfig;
   private boolean closed = false;
   private final Properties properties;
   private final List<Statement> openStatements = Collections.synchronizedList(new ArrayList<>());
@@ -179,6 +186,19 @@ public class DynamoDbConnection implements Connection {
     
     // Initialize transaction manager
     this.transactionManager = new TransactionManager(this.client);
+    
+    // Initialize Lambda support if enabled
+    if (org.cjgratacos.jdbc.lambda.LambdaConnectionConfig.isLambdaEnabled(this.properties)) {
+      this.lambdaConfig = new org.cjgratacos.jdbc.lambda.LambdaConnectionConfig(this.properties);
+      // Get the default credentials provider used for DynamoDB
+      var defaultCredentialsProvider = CredentialsProviderFactory.createCredentialsProvider(this.properties);
+      this.lambdaClient = org.cjgratacos.jdbc.lambda.LambdaClientFactory.createClient(
+          this.lambdaConfig, defaultCredentialsProvider);
+      if (logger.isInfoEnabled()) {
+        logger.info("Lambda support enabled with credentials type: {}", 
+            this.lambdaConfig.getCredentialsType());
+      }
+    }
   }
 
   private DynamoDbClient buildDynamoDbClient(final Properties props) throws SQLException {
@@ -416,11 +436,21 @@ public class DynamoDbConnection implements Connection {
           this.schemaCache.shutdown();
         } finally {
           try {
-            this.client.close();
+            // Close Lambda client if initialized
+            if (this.lambdaClient != null) {
+              this.lambdaClient.close();
+              if (logger.isDebugEnabled()) {
+                logger.debug("Lambda client closed");
+              }
+            }
           } finally {
-            this.closed = true;
-            if (logger.isDebugEnabled()) {
-              logger.debug("DynamoDB connection closed successfully");
+            try {
+              this.client.close();
+            } finally {
+              this.closed = true;
+              if (logger.isDebugEnabled()) {
+                logger.debug("DynamoDB connection closed successfully");
+              }
             }
           }
         }
@@ -524,7 +554,31 @@ public class DynamoDbConnection implements Connection {
 
   @Override
   public CallableStatement prepareCall(final String sql) throws SQLException {
-    throw new SQLException("Not yet implemented");
+    if (this.closed) {
+      throw new SQLException("Connection is closed");
+    }
+    if (sql == null || sql.trim().isEmpty()) {
+      throw new SQLException("SQL statement cannot be null or empty");
+    }
+    
+    // Check if this is a Lambda function call
+    if (sql.trim().toLowerCase().contains("lambda:")) {
+      if (this.lambdaClient == null) {
+        throw new SQLException("Lambda support is not enabled. Set lambda.* properties in connection URL.");
+      }
+      
+      var statement = new org.cjgratacos.jdbc.lambda.LambdaCallableStatement(
+          this, sql, this.lambdaClient, this.lambdaConfig);
+      this.openStatements.add(statement);
+      
+      if (logger.isDebugEnabled()) {
+        logger.debug("Created Lambda callable statement for: {}", sql);
+      }
+      
+      return statement;
+    } else {
+      throw new SQLException("Stored procedures are only supported via Lambda integration. Use syntax: {call lambda:functionName(?, ?)}");
+    }
   }
 
   @Override

@@ -41,13 +41,52 @@ import software.amazon.awssdk.services.dynamodb.model.ExecuteStatementResponse;
  *   <li>Forward-only cursor navigation (TYPE_FORWARD_ONLY)
  *   <li>Automatic pagination support for large result sets
  *   <li>Lazy loading of additional pages when needed
+ *   <li>Client-side LIMIT and OFFSET implementation
+ *   <li>Configurable fetch size for performance tuning
  *   <li>Proper resource cleanup and lifecycle management
  * </ul>
  *
  * <h2>Data Type Support:</h2>
  *
  * <ul>
- *   <li><strong>String types</strong>: getString(), getNString()
+ *   <li><strong>String types</strong>: getString(), getNString() - DynamoDB String (S) type
+ *   <li><strong>Number types</strong>: getInt(), getLong(), getFloat(), getDouble(), getBigDecimal() - DynamoDB Number (N) type
+ *   <li><strong>Boolean</strong>: getBoolean() - DynamoDB Boolean (BOOL) type
+ *   <li><strong>Binary</strong>: getBytes(), getBinaryStream() - DynamoDB Binary (B) type
+ *   <li><strong>Date/Time</strong>: getDate(), getTime(), getTimestamp() - Parsed from ISO-8601 strings
+ *   <li><strong>NULL</strong>: wasNull() - DynamoDB NULL type
+ * </ul>
+ *
+ * <h2>Key Features:</h2>
+ * <ul>
+ *   <li>Automatic type conversion from DynamoDB AttributeValues
+ *   <li>Column access by name or index (1-based)
+ *   <li>Case-insensitive column name lookup
+ *   <li>Comprehensive null handling
+ *   <li>Support for nested attribute access
+ *   <li>Primary and secondary key ordering for SELECT *
+ * </ul>
+ *
+ * <h2>Example Usage:</h2>
+ * <pre>{@code
+ * Statement stmt = connection.createStatement();
+ * ResultSet rs = stmt.executeQuery("SELECT * FROM Users WHERE status = 'active' LIMIT 100");
+ * 
+ * while (rs.next()) {
+ *     String userId = rs.getString("userId");
+ *     String name = rs.getString("name");
+ *     int age = rs.getInt("age");
+ *     boolean active = rs.getBoolean("isActive");
+ *     Timestamp lastLogin = rs.getTimestamp("lastLogin");
+ *     
+ *     if (rs.wasNull()) {
+ *         // Handle null lastLogin
+ *     }
+ * }
+ * rs.close();
+ * }</pre>
+ * 
+ * <ul>
  *   <li><strong>Numeric types</strong>: getInt(), getLong(), getDouble(), getFloat(), getByte(),
  *       getShort(), getBigDecimal()
  *   <li><strong>Boolean type</strong>: getBoolean()
@@ -121,7 +160,9 @@ public class DynamoDbResultSet implements ResultSet {
   private final List<Map<String, AttributeValue>> items;
   private String nextToken;
   private int currentRow = -1;
+  /** Flag indicating whether this ResultSet has been closed */
   protected boolean closed = false;
+  /** The current item/row from DynamoDB */
   protected Map<String, AttributeValue> currentItem;
   private boolean wasNull = false;
   private ResultSetMetaData cachedMetaData;

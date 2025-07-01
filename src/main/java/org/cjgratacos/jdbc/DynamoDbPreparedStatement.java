@@ -41,6 +41,47 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
  * <p>Parameter placeholders (?) in the SQL are replaced with actual values when the statement is
  * executed. The implementation handles type conversion from Java types to DynamoDB types.
  *
+ * <h2>Supported Parameter Types:</h2>
+ * <ul>
+ *   <li><strong>String</strong>: Maps to DynamoDB String (S) type
+ *   <li><strong>Number types</strong>: int, long, float, double, BigDecimal map to DynamoDB Number (N) type
+ *   <li><strong>Boolean</strong>: Maps to DynamoDB Boolean (BOOL) type
+ *   <li><strong>Binary</strong>: byte[] maps to DynamoDB Binary (B) type
+ *   <li><strong>Date/Time</strong>: Date, Time, Timestamp converted to ISO-8601 strings
+ *   <li><strong>NULL</strong>: Maps to DynamoDB NULL type
+ * </ul>
+ *
+ * <h2>Key Features:</h2>
+ * <ul>
+ *   <li>Automatic SQL escaping for string parameters
+ *   <li>Parameter validation with clear error messages
+ *   <li>Batch operations support with parameter isolation
+ *   <li>Parameter metadata support
+ *   <li>Prepared statement caching for performance
+ * </ul>
+ *
+ * <h2>Example Usage:</h2>
+ * <pre>{@code
+ * PreparedStatement ps = connection.prepareStatement(
+ *   "SELECT * FROM Users WHERE userId = ? AND status = ?"
+ * );
+ * ps.setString(1, "user123");
+ * ps.setString(2, "active");
+ * ResultSet rs = ps.executeQuery();
+ * 
+ * // Batch operations
+ * PreparedStatement insert = connection.prepareStatement(
+ *   "INSERT INTO Products VALUE {'id': ?, 'name': ?, 'price': ?}"
+ * );
+ * for (Product product : products) {
+ *   insert.setString(1, product.getId());
+ *   insert.setString(2, product.getName());
+ *   insert.setBigDecimal(3, product.getPrice());
+ *   insert.addBatch();
+ * }
+ * int[] results = insert.executeBatch();
+ * }</pre>
+ *
  * @author CJ Gratacos
  * @since 1.0
  */

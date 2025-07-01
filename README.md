@@ -30,6 +30,11 @@ While the driver implements the necessary JDBC interfaces to support application
 - **Performance Optimization**: Built-in caching, lazy loading, and concurrent operations
 - **Connection Pooling**: Built-in connection pool with configurable sizing and validation
 - **Observability**: Query metrics, retry handling, and correlation tracing
+- **Prepared Statement Caching**: Automatic caching of prepared statements for improved performance
+- **Batch Operations**: Support for batch INSERT, UPDATE, and DELETE operations
+- **Transaction Support**: DynamoDB TransactWriteItems integration for ACID transactions
+- **Updatable ResultSets**: Support for ResultSet updates with insertRow, updateRow, deleteRow
+- **Lambda Integration**: Execute AWS Lambda functions as stored procedures via CallableStatement
 
 ## 📦 Installation
 
@@ -832,6 +837,153 @@ schemaCache.refreshTableSchema("MyTable");
 
 The driver automatically generates correlation IDs for operation tracing and includes them in SLF4J MDC for consistent logging across multi-page queries.
 
+## 📚 Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+- **[Connection Pooling](docs/connection-pooling.md)** - Built-in connection pool configuration and best practices
+- **[Prepared Statement Caching](docs/prepared-statement-caching.md)** - Automatic caching of prepared statements for improved performance
+- **[Batch Operations](docs/batch-operations.md)** - Efficient batch INSERT, UPDATE, and DELETE operations
+- **[Transaction Support](docs/transactions.md)** - DynamoDB TransactWriteItems integration for ACID transactions
+- **[Updatable ResultSets](docs/updatable-resultsets.md)** - Modify data directly through ResultSet interface
+- **[Lambda Integration](docs/lambda-integration.md)** - Execute AWS Lambda functions as stored procedures
+
+## 🔧 Configuration Reference
+
+### Connection Properties
+
+The driver supports extensive configuration through connection properties. Properties can be set via:
+- Connection URL: `jdbc:dynamodb:partiql:region=us-east-1;property=value`
+- Properties object passed to `DriverManager.getConnection(url, props)`
+
+#### Core Properties
+
+| Property | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `region` | AWS region for DynamoDB | Required | `us-east-1` |
+| `endpoint` | Custom DynamoDB endpoint | AWS default | `http://localhost:8000` |
+| `credentialsType` | Type of AWS credentials | `DEFAULT` | `STATIC`, `PROFILE`, `ASSUME_ROLE` |
+| `accessKeyId` | AWS access key (for STATIC) | - | `AKIAIOSFODNN7EXAMPLE` |
+| `secretAccessKey` | AWS secret key (for STATIC) | - | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `profileName` | AWS profile name (for PROFILE) | `default` | `myapp-profile` |
+| `assumeRoleArn` | IAM role ARN (for ASSUME_ROLE) | - | `arn:aws:iam::123456789012:role/MyRole` |
+
+#### Connection Pool Properties
+
+| Property | Description | Default | Range |
+|----------|-------------|---------|-------|
+| `connectionPool.enabled` | Enable connection pooling | `true` | true/false |
+| `connectionPool.maxSize` | Maximum pool size | `10` | 1-100 |
+| `connectionPool.minSize` | Minimum pool size | `1` | 0-maxSize |
+| `connectionPool.maxIdleTime` | Max idle time (ms) | `600000` | 0-3600000 |
+| `connectionPool.validationQuery` | Validation query | `SELECT 1` | Any valid query |
+| `connectionPool.acquireTimeout` | Acquire timeout (ms) | `30000` | 1000-60000 |
+
+#### Prepared Statement Cache Properties
+
+| Property | Description | Default | Range |
+|----------|-------------|---------|-------|
+| `preparedStatementCache.enabled` | Enable statement caching | `true` | true/false |
+| `preparedStatementCache.size` | Cache size | `250` | 0-5000 |
+| `preparedStatementCache.sqlLimit` | Max SQL length | `2048` | 256-65536 |
+
+#### Batch Operation Properties
+
+| Property | Description | Default | Range |
+|----------|-------------|---------|-------|
+| `batch.size` | Max items per batch | `25` | 1-25 |
+| `batch.retryAttempts` | Retry attempts | `3` | 0-10 |
+| `batch.retryDelay` | Retry delay (ms) | `100` | 0-5000 |
+| `batch.failOnError` | Fail on any error | `false` | true/false |
+
+#### Transaction Properties
+
+| Property | Description | Default | Range |
+|----------|-------------|---------|-------|
+| `transaction.maxItems` | Max items per transaction | `25` | 1-25 |
+| `transaction.timeout` | Transaction timeout (ms) | `30000` | 1000-60000 |
+| `transaction.retryOnConflict` | Auto-retry conflicts | `true` | true/false |
+| `transaction.conflictRetries` | Conflict retries | `3` | 0-10 |
+
+#### Lambda Integration Properties
+
+| Property | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `lambda.region` | AWS region for Lambda | Same as DynamoDB | `us-east-1` |
+| `lambda.allowedFunctions` | Allowed function names | Required | `func1,func2,func3` |
+| `lambda.credentialsType` | Lambda credentials type | Same as DynamoDB | `ASSUME_ROLE` |
+| `lambda.assumeRoleArn` | Lambda IAM role | - | `arn:aws:iam::123456789012:role/Lambda` |
+| `lambda.timeout` | Invocation timeout (ms) | `30000` | `60000` |
+
+#### Foreign Key Properties
+
+| Property | Description | Example |
+|----------|-------------|---------|
+| `foreignKey.<name>` | Define foreign key | `Orders.customerId->Users.userId` |
+| `foreignKeysFile` | Properties file path | `/path/to/foreign-keys.properties` |
+| `foreignKeysTable` | DynamoDB table name | `MyAppForeignKeys` |
+| `validateForeignKeys` | Enable validation | `true` |
+| `foreignKeyValidationMode` | Validation mode | `strict`, `lenient`, `off` |
+
+#### Performance Properties
+
+| Property | Description | Default |
+|----------|-------------|---------|
+| `defaultFetchSize` | Default fetch size | `100` |
+| `maxRows` | Maximum rows to return | `0` (unlimited) |
+| `queryTimeout` | Query timeout (seconds) | `0` (no timeout) |
+| `retry.maxAttempts` | Max retry attempts | `3` |
+| `retry.baseDelay` | Base retry delay (ms) | `100` |
+
+#### Schema Discovery Properties
+
+| Property | Description | Default |
+|----------|-------------|---------|
+| `schemaDiscovery` | Schema discovery strategy | `SAMPLE` |
+| `sampleSize` | Sample size for schema | `100` |
+| `cacheSchemas` | Cache discovered schemas | `true` |
+| `schemaCache.ttl` | Schema cache TTL (ms) | `300000` |
+
+### Example Configurations
+
+#### Development Environment
+
+```java
+Properties props = new Properties();
+props.setProperty("region", "us-east-1");
+props.setProperty("endpoint", "http://localhost:8000");
+props.setProperty("credentialsType", "DEFAULT");
+props.setProperty("defaultFetchSize", "50");
+props.setProperty("connectionPool.maxSize", "5");
+```
+
+#### Production Environment
+
+```java
+Properties props = new Properties();
+props.setProperty("region", "us-east-1");
+props.setProperty("credentialsType", "ASSUME_ROLE");
+props.setProperty("assumeRoleArn", "arn:aws:iam::123456789012:role/AppRole");
+props.setProperty("connectionPool.enabled", "true");
+props.setProperty("connectionPool.maxSize", "20");
+props.setProperty("preparedStatementCache.enabled", "true");
+props.setProperty("preparedStatementCache.size", "500");
+props.setProperty("batch.retryAttempts", "5");
+props.setProperty("transaction.retryOnConflict", "true");
+```
+
+#### Lambda-Enabled Configuration
+
+```java
+Properties props = new Properties();
+props.setProperty("region", "us-east-1");
+props.setProperty("lambda.region", "us-east-1");
+props.setProperty("lambda.allowedFunctions", "processOrder,calculateMetrics,generateReport");
+props.setProperty("lambda.credentialsType", "ASSUME_ROLE");
+props.setProperty("lambda.assumeRoleArn", "arn:aws:iam::123456789012:role/LambdaExecutor");
+props.setProperty("lambda.timeout", "60000");
+```
+
 ## 🔍 PartiQL Query Examples
 
 ### Basic Queries
@@ -1016,6 +1168,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [PartiQL](https://partiql.org/)
 - [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html)
 - [Testcontainers](https://www.testcontainers.org/)
+
+## 📖 Documentation
+
+For detailed documentation on all features, configuration options, and best practices, please visit the [**Documentation Directory**](docs/).
 
 ---
 

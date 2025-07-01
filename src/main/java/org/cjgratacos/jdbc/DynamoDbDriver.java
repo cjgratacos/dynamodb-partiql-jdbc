@@ -21,20 +21,43 @@ import java.util.logging.Logger;
  * jdbc:dynamodb:partiql:region=&lt;region&gt;;credentialsType=&lt;type&gt;;[additional_properties];
  * </pre>
  *
- * <h2>Required Properties:</h2>
+ * <h2>Example URLs:</h2>
+ * <pre>
+ * // Basic connection
+ * jdbc:dynamodb:partiql:region=us-east-1
+ * 
+ * // With custom endpoint (DynamoDB Local)
+ * jdbc:dynamodb:partiql:region=us-east-1;endpoint=http://localhost:8000
+ * 
+ * // With IAM role assumption
+ * jdbc:dynamodb:partiql:region=us-east-1;credentialsType=ASSUME_ROLE;assumeRoleArn=arn:aws:iam::123456789012:role/MyRole
+ * 
+ * // With Lambda support
+ * jdbc:dynamodb:partiql:region=us-east-1;lambda.region=us-east-1;lambda.allowedFunctions=func1,func2
+ * </pre>
+ *
+ * <h2>Core Properties:</h2>
  *
  * <ul>
  *   <li><strong>region</strong>: AWS region (required). Can also be set via {@code
  *       AWS_DEFAULT_REGION} or {@code AWS_REGION} environment variables.
- * </ul>
- *
- * <h2>Optional Properties:</h2>
- *
- * <ul>
  *   <li><strong>endpoint</strong>: Custom endpoint URL (optional). If not provided, AWS SDK will
  *       use the default endpoint.
  *   <li><strong>credentialsType</strong>: Type of AWS credentials provider (DEFAULT, STATIC,
- *       PROFILE). Defaults to DEFAULT.
+ *       PROFILE, ASSUME_ROLE). Defaults to DEFAULT.
+ * </ul>
+ *
+ * <h2>Connection Pool Properties:</h2>
+ *
+ * <ul>
+ *   <li><strong>connectionPool.enabled</strong>: Enable connection pooling. Defaults to true.
+ *   <li><strong>connectionPool.maxSize</strong>: Maximum pool size. Defaults to 10.
+ *   <li><strong>connectionPool.minSize</strong>: Minimum pool size. Defaults to 1.
+ * </ul>
+ *
+ * <h2>Schema Discovery Properties:</h2>
+ *
+ * <ul>
  *   <li><strong>schemaDiscovery</strong>: Schema discovery mode (auto, hints, sampling, disabled).
  *       Defaults to auto.
  *   <li><strong>schemaOptimizations</strong>: Enable/disable performance optimizations. Defaults to
@@ -43,6 +66,12 @@ import java.util.logging.Logger;
  *       CACHED_ONLY, PREDICTIVE). Defaults to IMMEDIATE.
  *   <li><strong>preloadStrategy</strong>: Schema preloading strategy (STARTUP, PATTERN_BASED,
  *       SCHEDULED, REACTIVE, NONE). Defaults to PATTERN_BASED.
+ * </ul>
+ *
+ * <h2>Foreign Key Properties:</h2>
+ *
+ * <ul>
+ *   <li><strong>foreignKey.&lt;name&gt;</strong>: Inline foreign key definition.
  *   <li><strong>foreignKeysFile</strong>: Path to properties file containing foreign key
  *       definitions.
  *   <li><strong>foreignKeysTable</strong>: DynamoDB table name containing foreign key definitions.

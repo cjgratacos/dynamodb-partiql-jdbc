@@ -49,6 +49,7 @@
     <partiql.version>1.2.1</partiql.version>
     <testcontainers.version>1.21.1</testcontainers.version>
     <slf4j.version>2.0.17</slf4j.version>
+    <jackson.version>2.17.1</jackson.version>
     <junit.jupiter.version>5.13.1</junit.jupiter.version>
     <assertj.version>3.27.3</assertj.version>
     <mockito.version>5.18.0</mockito.version>
@@ -89,6 +90,10 @@
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>sts</artifactId>
     </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>lambda</artifactId>
+    </dependency>
     <!-- PartiQL -->
     <dependency>
       <groupId>org.partiql</groupId>
@@ -100,6 +105,12 @@
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
       <version>${slf4j.version}</version>
+    </dependency>
+    <!-- Jackson for JSON processing -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
     </dependency>
     <!-- Test Dependencies -->
     <dependency>
