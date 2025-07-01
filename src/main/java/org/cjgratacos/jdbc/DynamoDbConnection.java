@@ -98,10 +98,12 @@ public class DynamoDbConnection implements Connection {
   private final QueryMetrics queryMetrics;
   private final SchemaCache schemaCache;
   private final OffsetTokenCache offsetTokenCache;
+  private final TransactionManager transactionManager;
   private boolean closed = false;
   private final Properties properties;
   private final List<Statement> openStatements = Collections.synchronizedList(new ArrayList<>());
   private volatile boolean stale = false;
+  private boolean autoCommit = true;
 
   /**
    * Creates a new DynamoDB connection using the specified URL and properties.
@@ -174,6 +176,9 @@ public class DynamoDbConnection implements Connection {
         logger.info("Offset token cache disabled");
       }
     }
+    
+    // Initialize transaction manager
+    this.transactionManager = new TransactionManager(this.client);
   }
 
   private DynamoDbClient buildDynamoDbClient(final Properties props) throws SQLException {
@@ -352,6 +357,30 @@ public class DynamoDbConnection implements Connection {
   }
 
   /**
+   * Gets the retry handler for this connection.
+   *
+   * <p>This method provides access to the retry handler which manages retry logic for DynamoDB
+   * operations, including exponential backoff and jitter for throttled requests.
+   *
+   * @return the retry handler instance
+   */
+  public RetryHandler getRetryHandler() {
+    return this.retryHandler;
+  }
+
+  /**
+   * Gets the transaction manager for this connection.
+   *
+   * <p>This method provides access to the transaction manager which manages
+   * DynamoDB transactions using the TransactWriteItems API.
+   *
+   * @return the transaction manager instance
+   */
+  public TransactionManager getTransactionManager() {
+    return this.transactionManager;
+  }
+
+  /**
    * Removes a statement from the connection's tracking list. Called by statements when they are
    * closed.
    *
@@ -476,7 +505,21 @@ public class DynamoDbConnection implements Connection {
 
   @Override
   public PreparedStatement prepareStatement(final String sql) throws SQLException {
-    throw new SQLException("Not yet implemented");
+    if (this.closed) {
+      throw new SQLException("Connection is closed");
+    }
+    if (sql == null || sql.trim().isEmpty()) {
+      throw new SQLException("SQL statement cannot be null or empty");
+    }
+    
+    DynamoDbPreparedStatement statement = new DynamoDbPreparedStatement(this, sql);
+    this.openStatements.add(statement);
+    
+    if (logger.isDebugEnabled()) {
+      logger.debug("Created prepared statement for SQL: {}", sql);
+    }
+    
+    return statement;
   }
 
   @Override
@@ -491,22 +534,69 @@ public class DynamoDbConnection implements Connection {
 
   @Override
   public void setAutoCommit(final boolean autoCommit) throws SQLException {
-    // DynamoDB doesn't support transactions in the traditional sense
+    if (this.closed) {
+      throw new SQLException("Connection is closed");
+    }
+    
+    if (autoCommit && this.transactionManager.isInTransaction()) {
+      // Switching to autoCommit mode while in a transaction - commit the transaction
+      this.transactionManager.commit();
+    }
+    
+    this.autoCommit = autoCommit;
+    
+    if (!autoCommit && !this.transactionManager.isInTransaction()) {
+      // Starting a new transaction
+      this.transactionManager.beginTransaction();
+    }
   }
 
   @Override
   public boolean getAutoCommit() throws SQLException {
-    return true; // DynamoDB operations are always auto-committed
+    if (this.closed) {
+      throw new SQLException("Connection is closed");
+    }
+    return this.autoCommit;
   }
 
   @Override
   public void commit() throws SQLException {
-    // No-op for DynamoDB
+    if (this.closed) {
+      throw new SQLException("Connection is closed");
+    }
+    
+    if (this.autoCommit) {
+      throw new SQLException("Connection is in auto-commit mode");
+    }
+    
+    if (this.transactionManager.isInTransaction()) {
+      this.transactionManager.commit();
+      
+      // Start a new transaction if still not in auto-commit mode
+      if (!this.autoCommit) {
+        this.transactionManager.beginTransaction();
+      }
+    }
   }
 
   @Override
   public void rollback() throws SQLException {
-    throw new SQLException("Rollback not supported by DynamoDB");
+    if (this.closed) {
+      throw new SQLException("Connection is closed");
+    }
+    
+    if (this.autoCommit) {
+      throw new SQLException("Connection is in auto-commit mode");
+    }
+    
+    if (this.transactionManager.isInTransaction()) {
+      this.transactionManager.rollback();
+      
+      // Start a new transaction if still not in auto-commit mode
+      if (!this.autoCommit) {
+        this.transactionManager.beginTransaction();
+      }
+    }
   }
 
   @Override

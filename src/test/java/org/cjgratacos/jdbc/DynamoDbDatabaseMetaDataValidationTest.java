@@ -93,14 +93,26 @@ class DynamoDbDatabaseMetaDataValidationTest {
     DynamoDbConnection mockConnection = mock(DynamoDbConnection.class);
     when(mockConnection.getDynamoDbClient()).thenReturn(mockClient);
     
-    // Mock tables exist - return different table name based on request
-    when(mockClient.describeTable(any(DescribeTableRequest.class)))
+    // Mock tables exist - using Consumer<Builder> overload that TableValidator uses
+    when(mockClient.describeTable(any(java.util.function.Consumer.class)))
         .thenAnswer(invocation -> {
-          // Just return a successful response for any table
-          return DescribeTableResponse.builder()
-              .table(TableDescription.builder()
-                  .tableName("MockedTable")
-                  .build())
+          java.util.function.Consumer<DescribeTableRequest.Builder> consumer = invocation.getArgument(0);
+          DescribeTableRequest.Builder builder = DescribeTableRequest.builder();
+          consumer.accept(builder);
+          DescribeTableRequest request = builder.build();
+          String tableName = request.tableName();
+          
+          // Return successful response for Orders and Users tables
+          if ("Orders".equals(tableName) || "Users".equals(tableName)) {
+            return DescribeTableResponse.builder()
+                .table(TableDescription.builder()
+                    .tableName(tableName)
+                    .build())
+                .build();
+          }
+          
+          throw software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException.builder()
+              .message("Table not found: " + tableName)
               .build();
         });
     

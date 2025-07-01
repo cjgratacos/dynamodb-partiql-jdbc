@@ -321,6 +321,19 @@ public class DynamoDbConnectionPoolDataSource implements DataSource, AutoCloseab
     private final long validationsFailed;
     private final long waitTimeouts;
 
+    /**
+     * Creates a new PoolStatistics snapshot.
+     *
+     * @param totalConnections the total number of connections
+     * @param activeConnections the number of active connections
+     * @param idleConnections the number of idle connections
+     * @param connectionsCreated the total connections created
+     * @param connectionsDestroyed the total connections destroyed
+     * @param connectionsBorrowed the total connections borrowed
+     * @param connectionsReturned the total connections returned
+     * @param validationsFailed the total validation failures
+     * @param waitTimeouts the total wait timeouts
+     */
     public PoolStatistics(
         int totalConnections,
         int activeConnections,
@@ -342,38 +355,83 @@ public class DynamoDbConnectionPoolDataSource implements DataSource, AutoCloseab
       this.waitTimeouts = waitTimeouts;
     }
 
+    /**
+     * Gets the total number of connections in the pool.
+     *
+     * @return the total number of connections
+     */
     public int getTotalConnections() {
       return totalConnections;
     }
 
+    /**
+     * Gets the number of connections currently in use.
+     *
+     * @return the number of active connections
+     */
     public int getActiveConnections() {
       return activeConnections;
     }
 
+    /**
+     * Gets the number of idle connections available in the pool.
+     *
+     * @return the number of idle connections
+     */
     public int getIdleConnections() {
       return idleConnections;
     }
 
+    /**
+     * Gets the total number of connections created since pool startup.
+     *
+     * @return the total number of connections created
+     */
     public long getConnectionsCreated() {
       return connectionsCreated;
     }
 
+    /**
+     * Gets the total number of connections destroyed since pool startup.
+     *
+     * @return the total number of connections destroyed
+     */
     public long getConnectionsDestroyed() {
       return connectionsDestroyed;
     }
 
+    /**
+     * Gets the total number of connections borrowed from the pool.
+     *
+     * @return the total number of connections borrowed
+     */
     public long getConnectionsBorrowed() {
       return connectionsBorrowed;
     }
 
+    /**
+     * Gets the total number of connections returned to the pool.
+     *
+     * @return the total number of connections returned
+     */
     public long getConnectionsReturned() {
       return connectionsReturned;
     }
 
+    /**
+     * Gets the total number of connection validation failures.
+     *
+     * @return the total number of validation failures
+     */
     public long getValidationsFailed() {
       return validationsFailed;
     }
 
+    /**
+     * Gets the total number of connection acquisition timeouts.
+     *
+     * @return the total number of wait timeouts
+     */
     public long getWaitTimeouts() {
       return waitTimeouts;
     }

@@ -106,6 +106,8 @@ public class PooledConnection implements Connection {
 
   /**
    * Updates the last validation time.
+   *
+   * @param time the validation time
    */
   public void setLastValidationTime(Instant time) {
     this.lastValidationTime = time;

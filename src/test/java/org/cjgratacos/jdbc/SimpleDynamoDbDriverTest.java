@@ -44,8 +44,8 @@ class SimpleDynamoDbDriverTest {
   }
 
   @Test
-  @DisplayName("Driver returns property info with all 32 properties")
-  void driverReturnsPropertyInfoWithAll32Properties() throws SQLException {
+  @DisplayName("Driver returns property info with all 38 properties")
+  void driverReturnsPropertyInfoWithAll38Properties() throws SQLException {
     // Given: DynamoDB driver
     final var driver = new DynamoDbDriver();
     final var url = "jdbc:dynamodb:partiql:region=us-east-1";
@@ -54,8 +54,8 @@ class SimpleDynamoDbDriverTest {
     // When: Getting property info
     final var propertyInfo = driver.getPropertyInfo(url, properties);
 
-    // Then: Should return all 32 properties
-    assertThat(propertyInfo).hasSize(32);
+    // Then: Should return all 38 properties
+    assertThat(propertyInfo).hasSize(38);
 
     // Check some key properties exist
     final var propertyNames = java.util.Arrays.stream(propertyInfo).map(prop -> prop.name).toList();

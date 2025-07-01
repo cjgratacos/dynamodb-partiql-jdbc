@@ -19,6 +19,11 @@ public class ForeignKeyValidator {
 
   private final TableValidator tableValidator;
 
+  /**
+   * Creates a new ForeignKeyValidator.
+   *
+   * @param tableValidator the table validator to use for existence checks
+   */
   public ForeignKeyValidator(TableValidator tableValidator) {
     this.tableValidator = tableValidator;
   }
@@ -133,7 +138,27 @@ public class ForeignKeyValidator {
         if (isInvolvedInCircularReference(fk, circularReferences)) {
           List<String> errors = new ArrayList<>(result.getErrors());
           errors.add("Foreign key is part of a circular reference chain");
-          results.set(i, new ValidationResult(fk, errors));
+          
+          // Rebuild the foreign key with updated validation errors
+          ForeignKeyMetadata updatedFK = ForeignKeyMetadata.builder()
+              .constraintName(fk.getConstraintName())
+              .primaryCatalog(fk.getPrimaryCatalog())
+              .primarySchema(fk.getPrimarySchema())
+              .primaryTable(fk.getPrimaryTable())
+              .primaryColumn(fk.getPrimaryColumn())
+              .foreignCatalog(fk.getForeignCatalog())
+              .foreignSchema(fk.getForeignSchema())
+              .foreignTable(fk.getForeignTable())
+              .foreignColumn(fk.getForeignColumn())
+              .keySeq(fk.getKeySeq())
+              .updateRule(fk.getUpdateRule())
+              .deleteRule(fk.getDeleteRule())
+              .deferrability(fk.getDeferrability())
+              .validated(true)
+              .validationErrors(errors)
+              .build();
+              
+          results.set(i, new ValidationResult(updatedFK, errors));
         }
       }
     }
@@ -206,28 +231,56 @@ public class ForeignKeyValidator {
         || circularTables.contains(fk.getPrimaryTable());
   }
 
-  /** Represents the result of validating a foreign key. */
+  /**
+   * Represents the result of validating a foreign key.
+   */
   public static class ValidationResult {
     private final ForeignKeyMetadata foreignKey;
     private final List<String> errors;
 
+    /**
+     * Creates a new ValidationResult.
+     *
+     * @param foreignKey the foreign key that was validated
+     * @param errors the list of validation errors
+     */
     public ValidationResult(ForeignKeyMetadata foreignKey, List<String> errors) {
       this.foreignKey = foreignKey;
       this.errors = errors != null ? new ArrayList<>(errors) : new ArrayList<>();
     }
 
+    /**
+     * Gets the foreign key metadata.
+     *
+     * @return the foreign key metadata
+     */
     public ForeignKeyMetadata getForeignKey() {
       return foreignKey;
     }
 
+    /**
+     * Gets the validation errors.
+     *
+     * @return a copy of the validation errors list
+     */
     public List<String> getErrors() {
       return new ArrayList<>(errors);
     }
 
+    /**
+     * Checks if there are validation errors.
+     *
+     * @return true if there are errors
+     */
     public boolean hasErrors() {
       return !errors.isEmpty();
     }
 
+    /**
+     * Checks if the validation passed.
+     *
+     * @return true if validation passed
+     */
     public boolean isValid() {
       return errors.isEmpty();
     }
@@ -242,18 +295,35 @@ public class ForeignKeyValidator {
     }
   }
 
-  /** Represents a validation report for multiple foreign keys. */
+  /**
+   * Represents a validation report for multiple foreign keys.
+   */
   public static class ValidationReport {
     private final List<ValidationResult> results;
 
+    /**
+     * Creates a new ValidationReport.
+     *
+     * @param results the list of validation results
+     */
     public ValidationReport(List<ValidationResult> results) {
       this.results = new ArrayList<>(results);
     }
 
+    /**
+     * Gets all validation results.
+     *
+     * @return a copy of the validation results list
+     */
     public List<ValidationResult> getResults() {
       return new ArrayList<>(results);
     }
 
+    /**
+     * Gets the list of valid foreign keys.
+     *
+     * @return list of valid foreign keys
+     */
     public List<ForeignKeyMetadata> getValidForeignKeys() {
       return results.stream()
           .filter(ValidationResult::isValid)
@@ -261,6 +331,11 @@ public class ForeignKeyValidator {
           .collect(Collectors.toList());
     }
 
+    /**
+     * Gets the list of invalid foreign keys.
+     *
+     * @return list of invalid foreign keys
+     */
     public List<ForeignKeyMetadata> getInvalidForeignKeys() {
       return results.stream()
           .filter(r -> !r.isValid())
@@ -268,22 +343,47 @@ public class ForeignKeyValidator {
           .collect(Collectors.toList());
     }
 
+    /**
+     * Checks if any foreign key has validation errors.
+     *
+     * @return true if any foreign key has errors
+     */
     public boolean hasErrors() {
       return results.stream().anyMatch(r -> !r.isValid());
     }
 
+    /**
+     * Gets the total number of foreign keys validated.
+     *
+     * @return the total count
+     */
     public int getTotalCount() {
       return results.size();
     }
 
+    /**
+     * Gets the number of valid foreign keys.
+     *
+     * @return the valid count
+     */
     public int getValidCount() {
       return (int) results.stream().filter(ValidationResult::isValid).count();
     }
 
+    /**
+     * Gets the number of invalid foreign keys.
+     *
+     * @return the invalid count
+     */
     public int getInvalidCount() {
       return (int) results.stream().filter(r -> !r.isValid()).count();
     }
 
+    /**
+     * Gets all validation errors from all invalid foreign keys.
+     *
+     * @return list of all errors
+     */
     public List<String> getAllErrors() {
       return results.stream()
           .filter(r -> !r.isValid())

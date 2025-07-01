@@ -142,138 +142,303 @@ public class PoolConfiguration {
   }
 
   // Getters
+  /**
+   * Gets the minimum pool size.
+   *
+   * @return the minimum pool size
+   */
   public int getMinPoolSize() {
     return minPoolSize;
   }
 
+  /**
+   * Gets the maximum pool size.
+   *
+   * @return the maximum pool size
+   */
   public int getMaxPoolSize() {
     return maxPoolSize;
   }
 
+  /**
+   * Gets the initial pool size.
+   *
+   * @return the initial pool size
+   */
   public int getInitialPoolSize() {
     return initialPoolSize;
   }
 
+  /**
+   * Gets the connection timeout.
+   *
+   * @return the connection timeout
+   */
   public Duration getConnectionTimeout() {
     return connectionTimeout;
   }
 
+  /**
+   * Gets the idle timeout.
+   *
+   * @return the idle timeout
+   */
   public Duration getIdleTimeout() {
     return idleTimeout;
   }
 
+  /**
+   * Gets the maximum connection lifetime.
+   *
+   * @return the maximum lifetime
+   */
   public Duration getMaxLifetime() {
     return maxLifetime;
   }
 
+  /**
+   * Gets the validation timeout.
+   *
+   * @return the validation timeout
+   */
   public Duration getValidationTimeout() {
     return validationTimeout;
   }
 
+  /**
+   * Checks if connections are tested on borrow.
+   *
+   * @return true if test on borrow is enabled
+   */
   public boolean isTestOnBorrow() {
     return testOnBorrow;
   }
 
+  /**
+   * Checks if connections are tested on return.
+   *
+   * @return true if test on return is enabled
+   */
   public boolean isTestOnReturn() {
     return testOnReturn;
   }
 
+  /**
+   * Checks if idle connections are tested.
+   *
+   * @return true if test while idle is enabled
+   */
   public boolean isTestWhileIdle() {
     return testWhileIdle;
   }
 
+  /**
+   * Gets the time between eviction runs.
+   *
+   * @return the time between eviction runs
+   */
   public Duration getTimeBetweenEvictionRuns() {
     return timeBetweenEvictionRuns;
   }
 
+  /**
+   * Gets the number of tests per eviction run.
+   *
+   * @return the number of tests per eviction run
+   */
   public int getNumTestsPerEvictionRun() {
     return numTestsPerEvictionRun;
   }
 
+  /**
+   * Checks if the pool blocks when exhausted.
+   *
+   * @return true if blocking when exhausted is enabled
+   */
   public boolean isBlockWhenExhausted() {
     return blockWhenExhausted;
   }
 
+  /**
+   * Gets the maximum wait time for connections.
+   *
+   * @return the maximum wait time
+   */
   public Duration getMaxWaitTime() {
     return maxWaitTime;
   }
 
+  /**
+   * Checks if the pool uses LIFO ordering.
+   *
+   * @return true if LIFO ordering is enabled
+   */
   public boolean isLifo() {
     return lifo;
   }
 
+  /**
+   * Gets the connection properties.
+   *
+   * @return a copy of the connection properties
+   */
   public Properties getConnectionProperties() {
     return new Properties(connectionProperties);
   }
 
   // Builder pattern for easier configuration
+  /**
+   * Builder for PoolConfiguration objects.
+   */
   public static class Builder {
     private final PoolConfiguration config;
 
+    /**
+     * Creates a new builder with the given connection properties.
+     *
+     * @param connectionProperties the connection properties
+     */
     public Builder(Properties connectionProperties) {
       this.config = new PoolConfiguration(connectionProperties);
     }
 
+    /**
+     * Sets the minimum pool size.
+     *
+     * @param size the minimum pool size
+     * @return this builder
+     */
     public Builder minPoolSize(int size) {
       config.minPoolSize = size;
       return this;
     }
 
+    /**
+     * Sets the maximum pool size.
+     *
+     * @param size the maximum pool size
+     * @return this builder
+     */
     public Builder maxPoolSize(int size) {
       config.maxPoolSize = size;
       return this;
     }
 
+    /**
+     * Sets the initial pool size.
+     *
+     * @param size the initial pool size
+     * @return this builder
+     */
     public Builder initialPoolSize(int size) {
       config.initialPoolSize = size;
       return this;
     }
 
+    /**
+     * Sets the connection timeout.
+     *
+     * @param timeout the connection timeout
+     * @return this builder
+     */
     public Builder connectionTimeout(Duration timeout) {
       config.connectionTimeout = timeout;
       return this;
     }
 
+    /**
+     * Sets the idle timeout.
+     *
+     * @param timeout the idle timeout
+     * @return this builder
+     */
     public Builder idleTimeout(Duration timeout) {
       config.idleTimeout = timeout;
       return this;
     }
 
+    /**
+     * Sets the maximum connection lifetime.
+     *
+     * @param lifetime the maximum lifetime
+     * @return this builder
+     */
     public Builder maxLifetime(Duration lifetime) {
       config.maxLifetime = lifetime;
       return this;
     }
 
+    /**
+     * Sets whether to test connections on borrow.
+     *
+     * @param test true to test on borrow
+     * @return this builder
+     */
     public Builder testOnBorrow(boolean test) {
       config.testOnBorrow = test;
       return this;
     }
 
+    /**
+     * Sets whether to test connections on return.
+     *
+     * @param test true to test on return
+     * @return this builder
+     */
     public Builder testOnReturn(boolean test) {
       config.testOnReturn = test;
       return this;
     }
 
+    /**
+     * Sets whether to test idle connections.
+     *
+     * @param test true to test while idle
+     * @return this builder
+     */
     public Builder testWhileIdle(boolean test) {
       config.testWhileIdle = test;
       return this;
     }
 
+    /**
+     * Sets whether to block when the pool is exhausted.
+     *
+     * @param block true to block when exhausted
+     * @return this builder
+     */
     public Builder blockWhenExhausted(boolean block) {
       config.blockWhenExhausted = block;
       return this;
     }
 
+    /**
+     * Sets the maximum wait time for connections.
+     *
+     * @param waitTime the maximum wait time
+     * @return this builder
+     */
     public Builder maxWaitTime(Duration waitTime) {
       config.maxWaitTime = waitTime;
       return this;
     }
 
+    /**
+     * Sets whether to use LIFO ordering.
+     *
+     * @param lifo true for LIFO ordering
+     * @return this builder
+     */
     public Builder lifo(boolean lifo) {
       config.lifo = lifo;
       return this;
     }
 
+    /**
+     * Builds the pool configuration.
+     *
+     * @return the configured PoolConfiguration
+     */
     public PoolConfiguration build() {
       config.validateConfiguration();
       return config;

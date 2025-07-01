@@ -9,6 +9,7 @@ import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -128,6 +129,10 @@ public class DynamoDbStatement implements Statement {
   private SQLWarning warningChain;
   private final Object lock = new Object();
   private final int offsetWarningThreshold = 1000; // Default threshold
+  
+  // Batch operation support
+  private final List<String> batchCommands = new ArrayList<>();
+  private final PartiQLToTransactionConverter transactionConverter = new PartiQLToTransactionConverter();
 
   /**
    * Creates a new DynamoDB statement for the given connection.
@@ -332,14 +337,54 @@ public class DynamoDbStatement implements Statement {
     try {
       synchronized (this.lock) {
         this.validateNotClosed();
-        this.validatePartiQLSyntax(sql);
-        this.analyzeQueryAndAddWarnings(sql);
 
         if (!this.isDMLStatement(sql)) {
           throw new SQLException(
               "executeUpdate can only be used with DML statements (INSERT, UPDATE, DELETE, UPSERT,"
                   + " REPLACE)");
         }
+
+        // Check if we're in a transaction first, before validating syntax
+        TransactionManager transactionManager = this.connection.getTransactionManager();
+        if (!this.connection.getAutoCommit() && transactionManager.isInTransaction()) {
+          // Try to parse the DML statement for transaction support
+          PartiQLToTransactionConverter.DMLOperation dmlOp = transactionConverter.parseDMLStatement(sql);
+          
+          if (dmlOp != null) {
+            // Add to transaction instead of executing immediately
+            switch (dmlOp.getType()) {
+              case INSERT:
+                transactionManager.addPut(dmlOp.getTableName(), dmlOp.getItem());
+                break;
+              case UPDATE:
+                transactionManager.addUpdate(
+                    dmlOp.getTableName(),
+                    dmlOp.getKey(),
+                    dmlOp.getUpdateExpression(),
+                    dmlOp.getExpressionAttributeNames(),
+                    dmlOp.getExpressionAttributeValues()
+                );
+                break;
+              case DELETE:
+                transactionManager.addDelete(dmlOp.getTableName(), dmlOp.getKey());
+                break;
+            }
+            
+            if (DynamoDbStatement.logger.isDebugEnabled()) {
+              DynamoDbStatement.logger.debug("Added {} operation to transaction for table {}", 
+                  dmlOp.getType(), dmlOp.getTableName());
+            }
+            
+            // Return 0 for transaction operations (actual row count unknown until commit)
+            return 0;
+          }
+          // If we can't parse it for transactions, fall through to normal execution
+          // This handles UPSERT, REPLACE, and complex statements
+        }
+
+        // Now validate syntax for direct execution
+        this.validatePartiQLSyntax(sql);
+        this.analyzeQueryAndAddWarnings(sql);
 
         final var startTime = Instant.now();
         final var truncatedSql = sql.substring(0, Math.min(sql.length(), 50));
@@ -426,6 +471,10 @@ public class DynamoDbStatement implements Statement {
   }
 
   private void validatePartiQLSyntax(final String sql) throws SQLException {
+    // Skip validation for DynamoDB-specific VALUE syntax which the standard parser doesn't understand
+    if (sql != null && sql.toUpperCase().contains(" VALUE ")) {
+      return;
+    }
     PartiQLUtils.validateSyntax(sql, "Failed to validate PartiQL syntax");
   }
 
@@ -717,17 +766,92 @@ public class DynamoDbStatement implements Statement {
 
   @Override
   public void addBatch(final String sql) throws SQLException {
-    throw new SQLException("Batch operations not supported");
+    synchronized (this.lock) {
+      this.validateNotClosed();
+      if (sql == null || sql.trim().isEmpty()) {
+        throw new SQLException("Cannot add null or empty SQL to batch");
+      }
+      
+      // Only DML statements are allowed in batch
+      if (!isDMLStatement(sql)) {
+        throw new SQLException("Only DML statements (INSERT, UPDATE, DELETE, UPSERT, REPLACE) are allowed in batch operations");
+      }
+      
+      this.batchCommands.add(sql);
+      
+      if (logger.isDebugEnabled()) {
+        logger.debug("Added SQL to batch. Total batch size: {}", this.batchCommands.size());
+      }
+    }
   }
 
   @Override
   public void clearBatch() throws SQLException {
-    throw new SQLException("Batch operations not supported");
+    synchronized (this.lock) {
+      this.validateNotClosed();
+      this.batchCommands.clear();
+      
+      if (logger.isDebugEnabled()) {
+        logger.debug("Batch cleared");
+      }
+    }
   }
 
   @Override
   public int[] executeBatch() throws SQLException {
-    throw new SQLException("Batch operations not supported");
+    synchronized (this.lock) {
+      this.validateNotClosed();
+      
+      if (this.batchCommands.isEmpty()) {
+        return new int[0];
+      }
+      
+      final int batchSize = this.batchCommands.size();
+      final int[] results = new int[batchSize];
+      int successCount = 0;
+      int failureCount = 0;
+      
+      if (logger.isInfoEnabled()) {
+        logger.info("Executing batch with {} commands", batchSize);
+      }
+      
+      // Execute each command in the batch
+      for (int i = 0; i < batchSize; i++) {
+        final String sql = this.batchCommands.get(i);
+        try {
+          // Execute the DML statement
+          final int updateCount = this.executeUpdate(sql);
+          results[i] = updateCount;
+          successCount++;
+        } catch (Exception e) {
+          // According to JDBC spec, set to EXECUTE_FAILED on error
+          results[i] = Statement.EXECUTE_FAILED;
+          failureCount++;
+          
+          logger.warn("Batch command {} failed: {}", i, e.getMessage());
+          
+          // Continue processing remaining commands
+          // This follows the JDBC spec for non-transactional batch execution
+        }
+      }
+      
+      // Clear the batch after execution
+      this.batchCommands.clear();
+      
+      if (logger.isInfoEnabled()) {
+        logger.info("Batch execution completed. Success: {}, Failed: {}", successCount, failureCount);
+      }
+      
+      // If any commands failed, throw BatchUpdateException
+      if (failureCount > 0) {
+        throw new java.sql.BatchUpdateException(
+            String.format("Batch execution completed with %d failures out of %d commands", failureCount, batchSize),
+            results
+        );
+      }
+      
+      return results;
+    }
   }
 
   @Override

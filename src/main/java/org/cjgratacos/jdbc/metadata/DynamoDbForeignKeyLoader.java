@@ -28,6 +28,11 @@ public class DynamoDbForeignKeyLoader implements ForeignKeyLoader {
 
   private final DynamoDbClient dynamoDbClient;
 
+  /**
+   * Creates a new DynamoDbForeignKeyLoader.
+   *
+   * @param dynamoDbClient the DynamoDB client to use for loading foreign keys
+   */
   public DynamoDbForeignKeyLoader(DynamoDbClient dynamoDbClient) {
     this.dynamoDbClient = dynamoDbClient;
   }

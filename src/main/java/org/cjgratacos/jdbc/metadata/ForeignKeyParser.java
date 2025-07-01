@@ -26,12 +26,20 @@ public class ForeignKeyParser {
   private final ForeignKeyValidator foreignKeyValidator;
   private boolean validateOnParse = false;
 
+  /**
+   * Creates a ForeignKeyParser without validation support.
+   */
   public ForeignKeyParser() {
     this.dynamoDbClient = null;
     this.tableValidator = null;
     this.foreignKeyValidator = null;
   }
 
+  /**
+   * Creates a ForeignKeyParser with validation support.
+   *
+   * @param dynamoDbClient the DynamoDB client for validation
+   */
   public ForeignKeyParser(DynamoDbClient dynamoDbClient) {
     this.dynamoDbClient = dynamoDbClient;
     this.tableValidator = dynamoDbClient != null ? new TableValidator(dynamoDbClient) : null;
@@ -39,11 +47,22 @@ public class ForeignKeyParser {
         tableValidator != null ? new ForeignKeyValidator(tableValidator) : null;
   }
 
+  /**
+   * Creates a ForeignKeyParser with validation support and auto-validation option.
+   *
+   * @param dynamoDbClient the DynamoDB client for validation
+   * @param validateOnParse whether to validate foreign keys during parsing
+   */
   public ForeignKeyParser(DynamoDbClient dynamoDbClient, boolean validateOnParse) {
     this(dynamoDbClient);
     this.validateOnParse = validateOnParse;
   }
 
+  /**
+   * Sets whether to validate foreign keys during parsing.
+   *
+   * @param validateOnParse true to validate during parsing
+   */
   public void setValidateOnParse(boolean validateOnParse) {
     this.validateOnParse = validateOnParse;
   }

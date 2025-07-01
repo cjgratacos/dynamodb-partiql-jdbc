@@ -8,6 +8,7 @@ import java.util.List;
  */
 public class ForeignKeyValidationException extends SQLException {
 
+  /** The validation errors that caused this exception. */
   private final List<String> validationErrors;
 
   /**

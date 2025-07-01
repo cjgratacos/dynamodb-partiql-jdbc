@@ -442,38 +442,83 @@ public class DynamoDbConnectionPool implements AutoCloseable {
 
   // Getters for metrics
 
+  /**
+   * Gets the total number of connections in the pool (active + idle).
+   *
+   * @return the total number of connections
+   */
   public int getTotalConnections() {
     return totalConnections.get();
   }
 
+  /**
+   * Gets the number of connections currently in use.
+   *
+   * @return the number of active connections
+   */
   public int getActiveConnections() {
     return activeConnections.get();
   }
 
+  /**
+   * Gets the number of idle connections available in the pool.
+   *
+   * @return the number of idle connections
+   */
   public int getIdleConnections() {
     return availableConnections.size();
   }
 
+  /**
+   * Gets the total number of connections created since pool startup.
+   *
+   * @return the total number of connections created
+   */
   public long getConnectionsCreated() {
     return connectionsCreated.get();
   }
 
+  /**
+   * Gets the total number of connections destroyed since pool startup.
+   *
+   * @return the total number of connections destroyed
+   */
   public long getConnectionsDestroyed() {
     return connectionsDestroyed.get();
   }
 
+  /**
+   * Gets the total number of connections borrowed from the pool.
+   *
+   * @return the total number of connections borrowed
+   */
   public long getConnectionsBorrowed() {
     return connectionsBorrowed.get();
   }
 
+  /**
+   * Gets the total number of connections returned to the pool.
+   *
+   * @return the total number of connections returned
+   */
   public long getConnectionsReturned() {
     return connectionsReturned.get();
   }
 
+  /**
+   * Gets the total number of connection validation failures.
+   *
+   * @return the total number of validation failures
+   */
   public long getValidationsFailed() {
     return validationsFailed.get();
   }
 
+  /**
+   * Gets the total number of connection acquisition timeouts.
+   *
+   * @return the total number of wait timeouts
+   */
   public long getWaitTimeouts() {
     return waitTimeouts.get();
   }

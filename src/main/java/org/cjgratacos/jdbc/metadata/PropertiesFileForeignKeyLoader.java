@@ -20,6 +20,13 @@ import org.slf4j.LoggerFactory;
  * fk.1.updateRule=CASCADE fk.1.deleteRule=RESTRICT
  */
 public class PropertiesFileForeignKeyLoader implements ForeignKeyLoader {
+  
+  /**
+   * Creates a new PropertiesFileForeignKeyLoader.
+   */
+  public PropertiesFileForeignKeyLoader() {
+    // Default constructor
+  }
   private static final Logger logger =
       LoggerFactory.getLogger(PropertiesFileForeignKeyLoader.class);
 

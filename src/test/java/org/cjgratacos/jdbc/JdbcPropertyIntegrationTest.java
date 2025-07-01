@@ -26,8 +26,8 @@ class JdbcPropertyIntegrationTest {
   class UrlPropertyParsingIntegrationTests {
 
     @Test
-    @DisplayName("All 32 properties are parsed from URL correctly")
-    void all32PropertiesAreParsedFromUrlCorrectly() throws SQLException {
+    @DisplayName("All 38 properties are parsed from URL correctly")
+    void all38PropertiesAreParsedFromUrlCorrectly() throws SQLException {
       // Given: URL with all possible properties
       final var url =
           "jdbc:dynamodb:partiql:"
@@ -71,7 +71,7 @@ class JdbcPropertyIntegrationTest {
       assertThat(driver.acceptsURL(url)).isTrue();
 
       final var propertyInfo = driver.getPropertyInfo(url, new Properties());
-      assertThat(propertyInfo).hasSize(32);
+      assertThat(propertyInfo).hasSize(38);
     }
 
     @Test

@@ -223,13 +223,25 @@ class ForeignKeyEndToEndTest {
   }
 
   private void setupMockTablesExist(String... tableNames) {
-    for (String tableName : tableNames) {
-      when(mockClient.describeTable(any(DescribeTableRequest.class)))
-          .thenReturn(
-              DescribeTableResponse.builder()
+    // Mock the Consumer<Builder> overload that TableValidator uses
+    when(mockClient.describeTable(any(java.util.function.Consumer.class)))
+        .thenAnswer(invocation -> {
+          java.util.function.Consumer<DescribeTableRequest.Builder> consumer = invocation.getArgument(0);
+          DescribeTableRequest.Builder builder = DescribeTableRequest.builder();
+          consumer.accept(builder);
+          DescribeTableRequest request = builder.build();
+          String requestedTable = request.tableName();
+          for (String tableName : tableNames) {
+            if (tableName.equals(requestedTable)) {
+              return DescribeTableResponse.builder()
                   .table(TableDescription.builder().tableName(tableName).build())
-                  .build());
-    }
+                  .build();
+            }
+          }
+          throw software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException.builder()
+              .message("Table not found: " + requestedTable)
+              .build();
+        });
   }
 
   private void setupMockColumnsExist() {
