@@ -44,7 +44,7 @@ While the driver implements the necessary JDBC interfaces to support application
 <dependency>
     <groupId>org.cjgratacos</groupId>
     <artifactId>dynamodb-partiql-jdbc</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
 </dependency>
 ```
 
@@ -53,7 +53,7 @@ While the driver implements the necessary JDBC interfaces to support application
 ### Gradle Dependency
 
 ```gradle
-implementation 'org.cjgratacos:dynamodb-partiql-jdbc:1.0.0'
+implementation 'org.cjgratacos:dynamodb-partiql-jdbc:1.1.0'
 ```
 
 ### Direct JAR Download
@@ -841,12 +841,20 @@ The driver automatically generates correlation IDs for operation tracing and inc
 
 Comprehensive documentation is available in the `docs/` directory:
 
+### Core Features
 - **[Connection Pooling](docs/connection-pooling.md)** - Built-in connection pool configuration and best practices
 - **[Prepared Statement Caching](docs/prepared-statement-caching.md)** - Automatic caching of prepared statements for improved performance
 - **[Batch Operations](docs/batch-operations.md)** - Efficient batch INSERT, UPDATE, and DELETE operations
 - **[Transaction Support](docs/transactions.md)** - DynamoDB TransactWriteItems integration for ACID transactions
 - **[Updatable ResultSets](docs/updatable-resultsets.md)** - Modify data directly through ResultSet interface
 - **[Lambda Integration](docs/lambda-integration.md)** - Execute AWS Lambda functions as stored procedures
+
+### Advanced Topics
+- **[Pagination Guide](docs/pagination-guide.md)** - OFFSET optimization and token caching strategies
+- **[Schema Discovery](docs/schema-discovery.md)** - Automatic schema detection and caching
+- **[Performance Tuning](docs/performance-tuning.md)** - Optimization techniques and best practices
+- **[Security Guide](docs/security.md)** - Authentication, encryption, and secure coding
+- **[Troubleshooting](docs/troubleshooting.md)** - Common issues and debugging tips
 
 ## 🔧 Configuration Reference
 

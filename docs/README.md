@@ -58,25 +58,31 @@ Each guide includes:
 
 ### Advanced Topics
 
-7. **[Schema Discovery](schema-discovery.md)**
+7. **[Pagination Guide](pagination-guide.md)**
+   - Understanding DynamoDB's token-based pagination
+   - OFFSET performance optimization with token caching
+   - Configuration options for cache tuning
+   - Best practices for large result sets
+
+8. **[Schema Discovery](schema-discovery.md)**
    - Automatic schema detection strategies
    - Schema caching and management
    - Handling schema evolution
    - Integration with database tools
 
-8. **[Performance Tuning](performance-tuning.md)**
+9. **[Performance Tuning](performance-tuning.md)**
    - Connection optimization techniques
    - Query performance best practices
    - Batch and transaction optimization
    - JVM tuning recommendations
 
-9. **[Security Guide](security.md)**
-   - Authentication and authorization
-   - Encryption and credential management
-   - Secure coding practices
-   - Audit and compliance
+10. **[Security Guide](security.md)**
+    - Authentication and authorization
+    - Encryption and credential management
+    - Secure coding practices
+    - Audit and compliance
 
-10. **[Troubleshooting](troubleshooting.md)**
+11. **[Troubleshooting](troubleshooting.md)**
     - Common connection issues
     - Query and performance problems
     - Type conversion and transaction errors
