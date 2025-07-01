@@ -121,8 +121,8 @@ public class DynamoDbResultSet implements ResultSet {
   private final List<Map<String, AttributeValue>> items;
   private String nextToken;
   private int currentRow = -1;
-  private boolean closed = false;
-  private Map<String, AttributeValue> currentItem;
+  protected boolean closed = false;
+  protected Map<String, AttributeValue> currentItem;
   private boolean wasNull = false;
   private ResultSetMetaData cachedMetaData;
   private final int fetchSize;

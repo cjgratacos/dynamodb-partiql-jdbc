@@ -129,6 +129,7 @@ public class DynamoDbStatement implements Statement {
   private SQLWarning warningChain;
   private final Object lock = new Object();
   private final int offsetWarningThreshold = 1000; // Default threshold
+  private int resultSetConcurrency = ResultSet.CONCUR_READ_ONLY;
   
   // Batch operation support
   private final List<String> batchCommands = new ArrayList<>();
@@ -296,23 +297,52 @@ public class DynamoDbStatement implements Statement {
 
         // Extract table name to get key information only for SELECT * queries
         TableKeyInfo tableKeyInfo = null;
+        String tableName = null;
         if (SqlQueryParser.isSelectAllQuery(processedSql)) {
-          final String tableName = SqlQueryParser.extractTableName(processedSql);
+          tableName = SqlQueryParser.extractTableName(processedSql);
           tableKeyInfo = (tableName != null) ? this.getTableKeyInfo(tableName) : null;
+        } else {
+          // Also extract table name for non-SELECT * queries to check if updatable
+          tableName = SqlQueryParser.extractTableName(processedSql);
         }
 
         final OffsetTokenCache cache = this.connection.getOffsetTokenCache();
 
-        this.currentResultSet =
-            new DynamoDbResultSet(
-                this.client,
-                cleanedSql,
-                response,
-                this.fetchSize,
-                limitOffsetInfo,
-                tableKeyInfo,
-                this.maxRows,
-                cache);
+        // Check if this is an updatable query (simple single-table SELECT)
+        boolean isUpdatable = false;
+        Map<String, String> primaryKeyColumns = null;
+        if (tableName != null && isSimpleQuery(processedSql) && resultSetConcurrency == ResultSet.CONCUR_UPDATABLE) {
+          // Get primary key information
+          primaryKeyColumns = getPrimaryKeyColumns(tableName);
+          isUpdatable = !primaryKeyColumns.isEmpty();
+        }
+
+        if (isUpdatable) {
+          this.currentResultSet =
+              new UpdatableResultSet(
+                  this.client,
+                  cleanedSql,
+                  response,
+                  this.fetchSize,
+                  limitOffsetInfo,
+                  tableKeyInfo,
+                  this.maxRows,
+                  cache,
+                  this,
+                  tableName,
+                  primaryKeyColumns);
+        } else {
+          this.currentResultSet =
+              new DynamoDbResultSet(
+                  this.client,
+                  cleanedSql,
+                  response,
+                  this.fetchSize,
+                  limitOffsetInfo,
+                  tableKeyInfo,
+                  this.maxRows,
+                  cache);
+        }
 
         if (DynamoDbStatement.logger.isInfoEnabled()) {
           DynamoDbStatement.logger.info(
@@ -756,7 +786,20 @@ public class DynamoDbStatement implements Statement {
 
   @Override
   public int getResultSetConcurrency() throws SQLException {
-    return ResultSet.CONCUR_READ_ONLY;
+    return resultSetConcurrency;
+  }
+  
+  /**
+   * Sets the result set concurrency for statements executed by this Statement object.
+   *
+   * @param concurrency either ResultSet.CONCUR_READ_ONLY or ResultSet.CONCUR_UPDATABLE
+   * @throws SQLException if concurrency is not a valid concurrency level
+   */
+  public void setResultSetConcurrency(int concurrency) throws SQLException {
+    if (concurrency != ResultSet.CONCUR_READ_ONLY && concurrency != ResultSet.CONCUR_UPDATABLE) {
+      throw new SQLException("Invalid concurrency level: " + concurrency);
+    }
+    this.resultSetConcurrency = concurrency;
   }
 
   @Override
@@ -911,6 +954,86 @@ public class DynamoDbStatement implements Statement {
           "Unable to retrieve table key information for {}: {}", tableName, e.getMessage());
       return null;
     }
+  }
+
+  /**
+   * Checks if a query is a simple single-table query that can be made updatable.
+   *
+   * @param sql the SQL query
+   * @return true if the query is simple and updatable
+   */
+  private boolean isSimpleQuery(final String sql) {
+    if (sql == null) {
+      return false;
+    }
+    
+    final String upperSql = sql.toUpperCase().trim();
+    
+    // Must be a SELECT statement
+    if (!upperSql.startsWith("SELECT")) {
+      return false;
+    }
+    
+    // Cannot have JOINs
+    if (upperSql.contains(" JOIN ")) {
+      return false;
+    }
+    
+    // Cannot have GROUP BY
+    if (upperSql.contains(" GROUP BY ")) {
+      return false;
+    }
+    
+    // Cannot have aggregations
+    if (upperSql.contains("COUNT(") || upperSql.contains("SUM(") || 
+        upperSql.contains("AVG(") || upperSql.contains("MAX(") || 
+        upperSql.contains("MIN(")) {
+      return false;
+    }
+    
+    // Cannot have UNION
+    if (upperSql.contains(" UNION ")) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  /**
+   * Gets the primary key columns for a table.
+   *
+   * @param tableName the table name
+   * @return map of column names to their DynamoDB types
+   */
+  private Map<String, String> getPrimaryKeyColumns(final String tableName) {
+    final Map<String, String> keyColumns = new java.util.HashMap<>();
+    
+    try {
+      final var describeTableRequest =
+          software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest.builder()
+              .tableName(tableName)
+              .build();
+      final var tableDesc = this.client.describeTable(describeTableRequest).table();
+      
+      // Get attribute definitions
+      final Map<String, String> attributeTypes = new java.util.HashMap<>();
+      for (final var attrDef : tableDesc.attributeDefinitions()) {
+        attributeTypes.put(attrDef.attributeName(), attrDef.attributeType().toString());
+      }
+      
+      // Get primary key columns
+      for (final var keyElement : tableDesc.keySchema()) {
+        final String columnName = keyElement.attributeName();
+        final String columnType = attributeTypes.get(columnName);
+        if (columnType != null) {
+          keyColumns.put(columnName, columnType);
+        }
+      }
+    } catch (final Exception e) {
+      logger.debug("Unable to retrieve primary key information for {}: {}", tableName, e.getMessage());
+    }
+    
+    return keyColumns;
   }
 
   @Override
