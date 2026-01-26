@@ -50,7 +50,7 @@
     <testcontainers.version>1.21.1</testcontainers.version>
     <slf4j.version>2.0.17</slf4j.version>
     <junit.jupiter.version>5.13.1</junit.jupiter.version>
-    <assertj.version>3.27.3</assertj.version>
+    <assertj.version>3.27.7</assertj.version>
     <mockito.version>5.18.0</mockito.version>
     <mockito.junit.jupiter.version>5.18.0</mockito.junit.jupiter.version>
   </properties>
